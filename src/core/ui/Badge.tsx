@@ -12,10 +12,10 @@ export const Badge: React.FC<BadgeProps> = ({
   className = "",
 }) => {
   const styles = {
-    primary: "bg-[#5170FF]/10 text-[#5170FF] border-[#5170FF]/20",
+    primary: "bg-primary/10 text-primary border-primary/20",
     success: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
     warning: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-    info: "bg-[#5170FF]/15 text-[#3B59FF] border-[#5170FF]/30",
+    info: "bg-primary/15 text-[#3B59FF] border-primary/30",
     danger: "bg-rose-500/10 text-rose-600 border-rose-500/20",
   };
 
@@ -25,6 +25,5 @@ export const Badge: React.FC<BadgeProps> = ({
     >
       {children}
     </span>
-    
   );
 };

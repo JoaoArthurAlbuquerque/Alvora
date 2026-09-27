@@ -60,7 +60,7 @@ export const AppLayout: React.FC = () => {
         <img src="/alvora_blue.svg" alt="Alvora" className="h-8 w-auto" />
         <button
           onClick={fecharMenu}
-          className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-[#5170FF]/10"
+          className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-primary/10"
           aria-label="Fechar menu"
         >
           <X size={18} />
@@ -78,8 +78,8 @@ export const AppLayout: React.FC = () => {
               cn(
                 "flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200",
                 isActive
-                  ? "bg-[#5170FF] text-white shadow-flat-sm"
-                  : "text-slate-600 hover:bg-[#5170FF]/10 hover:text-[#5170FF]",
+                  ? "bg-primary text-white shadow-flat-sm"
+                  : "text-slate-600 hover:bg-primary/10 hover:text-primary",
               )
             }
           >
@@ -89,8 +89,8 @@ export const AppLayout: React.FC = () => {
         ))}
       </nav>
 
-      <div className="mt-auto space-y-2 pt-4 border-t border-[#5170FF]/10">
-        <p className="px-3 text-xs font-semibold text-[#5170FF] uppercase tracking-wider mb-2">
+      <div className="mt-auto space-y-2 pt-4 border-t border-primary/10">
+        <p className="px-3 text-xs font-semibold text-primary uppercase tracking-wider mb-2">
           Ações Rápidas
         </p>
         {acoesExtras[papel].map(({ label, path, icone: Icone }) => (
@@ -99,17 +99,17 @@ export const AppLayout: React.FC = () => {
             onClick={() => irPara(path)}
             className={cn(
               botaoAcao,
-              "bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10",
+              "bg-primary/5 text-slate-700 hover:bg-primary/10",
             )}
           >
-            <Icone size={15} className="text-[#5170FF]" /> {label}
+            <Icone size={15} className="text-primary" /> {label}
           </button>
         ))}
         <button
           onClick={abrir(setIsAiOpen)}
           className={cn(
             botaoAcao,
-            "bg-[#5170FF]/10 text-[#5170FF] hover:bg-[#5170FF]/15",
+            "bg-primary/10 text-primary hover:bg-primary/15",
           )}
         >
           <Sparkles size={15} /> Assistente IA
@@ -121,36 +121,36 @@ export const AppLayout: React.FC = () => {
           onClick={abrir(setIsDuvidasOpen)}
           className={cn(
             botaoAcao,
-            "bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10",
+            "bg-primary/5 text-slate-700 hover:bg-primary/10",
           )}
         >
-          <CircleHelp size={15} className="text-[#5170FF]" /> Central de Dúvidas
+          <CircleHelp size={15} className="text-primary" /> Central de Dúvidas
         </button>
         <button
           onClick={abrir(setIsCalendarOpen)}
           className={cn(
             botaoAcao,
-            "bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10",
+            "bg-primary/5 text-slate-700 hover:bg-primary/10",
           )}
         >
-          <CalendarDays size={15} className="text-[#5170FF]" /> Calendário
+          <CalendarDays size={15} className="text-primary" /> Calendário
         </button>
       </div>
 
-      <div className="pt-4 mt-4 border-t border-[#5170FF]/10 flex items-center justify-between">
+      <div className="pt-4 mt-4 border-t border-primary/10 flex items-center justify-between">
         <NavLink
           to={`/${papel}/perfil`}
           onClick={fecharMenu}
           className="flex items-center gap-2.5 overflow-hidden"
         >
-          <div className="w-9 h-9 rounded-full bg-[#5170FF]/15 text-[#5170FF] font-bold flex items-center justify-center text-sm shrink-0">
+          <div className="w-9 h-9 rounded-full bg-primary/15 text-primary font-bold flex items-center justify-center text-sm shrink-0">
             {usuario.nome.replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "").charAt(0)}
           </div>
           <div className="truncate">
             <p className="text-xs font-bold text-slate-900 truncate">
               {usuario.nome}
             </p>
-            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#5170FF]/10 text-[#5170FF] border border-[#5170FF]/20">
+            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
               {rotuloPapel[papel]}
             </span>
           </div>
@@ -167,9 +167,9 @@ export const AppLayout: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex bg-[#F5F7FF]">
+    <div className="min-h-screen flex bg-primary-soft">
       {/* Sidebar desktop */}
-      <aside className="hidden md:flex w-64 h-screen sticky top-0 bg-white border-r border-[#5170FF]/10 flex-col p-5 shadow-flat shrink-0 z-20 overflow-y-auto">
+      <aside className="hidden md:flex w-64 h-screen sticky top-0 bg-white border-r border-primary/10 flex-col p-5 shadow-flat shrink-0 z-20 overflow-y-auto">
         {conteudoSidebar}
       </aside>
 
@@ -177,7 +177,7 @@ export const AppLayout: React.FC = () => {
       {menuAberto && (
         <div className="md:hidden fixed inset-0 z-40">
           <div
-            className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
             onClick={fecharMenu}
           />
           <aside className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-white flex flex-col p-5 shadow-flat overflow-y-auto">
@@ -187,11 +187,11 @@ export const AppLayout: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[#5170FF]/10 px-4 md:px-8 flex items-center justify-between gap-3 sticky top-0 z-10">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-primary/10 px-4 md:px-8 flex items-center justify-between gap-3 sticky top-0 z-10">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setMenuAberto(true)}
-              className="md:hidden p-2.5 -ml-2 rounded-xl text-[#5170FF] hover:bg-[#5170FF]/10"
+              className="md:hidden p-2.5 -ml-2 rounded-xl text-primary hover:bg-primary/10"
               aria-label="Abrir menu"
             >
               <Menu size={20} />
@@ -200,7 +200,7 @@ export const AppLayout: React.FC = () => {
               {titulos[papel]}
             </h2>
           </div>
-          <span className="shrink-0 text-xs font-medium px-3 py-1 rounded-full bg-[#5170FF]/10 text-[#5170FF]">
+          <span className="shrink-0 text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
             Ano Letivo 2026
           </span>
         </header>

@@ -204,7 +204,7 @@ export const LancamentoFrequencia: React.FC = () => {
       )}
 
       <Card>
-        <div className="flex justify-between items-center mb-4 pb-3 border-b border-[#5170FF]/10">
+        <div className="flex justify-between items-center mb-4 pb-3 border-b border-primary/10">
           <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Alunos Confirmados ({totalPresentes}/{alunos.length})
             {chamadaAtiva && (
@@ -219,7 +219,7 @@ export const LancamentoFrequencia: React.FC = () => {
           </span>
         </div>
 
-        <div className="divide-y divide-[#5170FF]/10">
+        <div className="divide-y divide-primary/10">
           {alunos.map((aluno) => (
             <div
               key={aluno.id}
@@ -229,7 +229,7 @@ export const LancamentoFrequencia: React.FC = () => {
                 <p className="text-sm font-bold text-slate-800">
                   {aluno.nome}
                   {aluno.viaPin && (
-                    <span className="ml-2 text-[10px] font-bold text-[#5170FF] bg-[#5170FF]/10 px-2 py-0.5 rounded-lg">
+                    <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg">
                       via PIN
                     </span>
                   )}
@@ -260,13 +260,13 @@ export const LancamentoFrequencia: React.FC = () => {
             Digite este código no seu Portal do Aluno
           </p>
 
-          <div className="inline-block bg-[#5170FF]/10 border-2 border-[#5170FF] px-10 py-6 rounded-3xl shadow-flat">
-            <span className="text-6xl font-black text-[#5170FF] tracking-widest">
+          <div className="inline-block bg-primary/10 border-2 border-primary px-10 py-6 rounded-3xl shadow-flat">
+            <span className="text-6xl font-black text-primary tracking-widest">
               {pin ?? "-".repeat(REGRAS.digitosPin)}
             </span>
           </div>
 
-          <div className="p-3 bg-[#F5F7FF] rounded-2xl max-w-xs mx-auto border border-[#5170FF]/10">
+          <div className="p-3 bg-primary-soft rounded-2xl max-w-xs mx-auto border border-primary/10">
             <p className="text-xs text-slate-500">Expira em</p>
             <p className="text-2xl font-black text-amber-600">
               {chamadaAtiva ? formatarTempo(tempoRestante) : "Expirado"}

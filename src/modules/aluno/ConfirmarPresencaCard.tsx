@@ -17,7 +17,7 @@ const MENSAGENS: Record<ResultadoConfirmacao, { texto: string; cor: string }> =
     expirado: { texto: "Esta chamada já expirou.", cor: "text-amber-600" },
     duplicado: {
       texto: "Você já confirmou presença. 😉",
-      cor: "text-[#5170FF]",
+      cor: "text-primary",
     },
   };
 
@@ -44,7 +44,7 @@ export const ConfirmarPresencaCard: React.FC = () => {
           }
           inputMode="numeric"
           placeholder="PIN de 4 dígitos"
-          className="flex-1 px-4 py-2 rounded-xl border border-[#5170FF]/20 text-center text-lg font-black tracking-widest focus:outline-none focus:border-[#5170FF]"
+          className="flex-1 px-4 py-2 rounded-xl border border-primary/20 text-center text-lg font-black tracking-widest focus:outline-none focus:border-primary"
         />
         <Button type="submit" disabled={pin.length !== 4}>
           Confirmar

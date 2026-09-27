@@ -47,8 +47,8 @@ export const AssistentePedagogicoModal: React.FC<Props> = ({
               key={idx}
               className={`p-3 rounded-2xl text-xs leading-relaxed ${
                 m.role === "user"
-                  ? "bg-[#5170FF] text-white ml-auto max-w-[80%]"
-                  : "bg-[#5170FF]/10 text-slate-800 mr-auto max-w-[80%]"
+                  ? "bg-primary text-white ml-auto max-w-[80%]"
+                  : "bg-primary/10 text-slate-800 mr-auto max-w-[80%]"
               }`}
             >
               {m.content}
@@ -62,7 +62,7 @@ export const AssistentePedagogicoModal: React.FC<Props> = ({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Digite sua dúvida pedagógica..."
-            className="flex-1 px-4 py-2 rounded-xl border border-[#5170FF]/20 text-xs focus:outline-none focus:ring-2 focus:ring-[#5170FF]/40 bg-[#F5F7FF]"
+            className="flex-1 px-4 py-2 rounded-xl border border-primary/20 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 bg-primary-soft"
           />
           <Button type="submit" size="sm">
             Enviar

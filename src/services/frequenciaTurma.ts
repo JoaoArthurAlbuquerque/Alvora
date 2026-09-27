@@ -5,12 +5,15 @@ import {
   sessaoFrequenciaAtiva,
 } from "../mocks/data";
 import { useRegistros, contaComoPresenca, diarioStore } from "./diarioStore";
+import { useJustificativas } from "./justificativaStore";
 import { LIMITE_FALTAS_PCT } from "../config/regras";
 import type { RegistroPresenca } from "../types";
 
 export const TURMA_ID = "turma-a";
 export const DISCIPLINA_ID = sessaoFrequenciaAtiva.disciplinaId;
-export { LIMITE_FALTAS_PCT }; // PortalProfessor continua importando daqui
+export { LIMITE_FALTAS_PCT }; // PortalProfessor e PortalGestor importam daqui
+
+type Justificativa = ReturnType<typeof useJustificativas>[number];
 
 export interface ResumoFrequenciaAluno {
   id: string;
@@ -19,13 +22,28 @@ export interface ResumoFrequenciaAluno {
   totalAulas: number;
   presencas: number;
   faltas: number;
+  faltasAbonadas: number;
   percentualFrequencia: number;
   percentualFaltas: number;
   emRisco: boolean;
 }
 
+/** Conta os abonos aprovados de um aluno na disciplina da turma (datas únicas). */
+const contarAbonos = (justificativas: Justificativa[], alunoId: string) =>
+  new Set(
+    justificativas
+      .filter(
+        (j) =>
+          j.alunoId === alunoId &&
+          j.disciplinaId === DISCIPLINA_ID &&
+          j.status === "aprovada",
+      )
+      .map((j) => j.dataFalta),
+  ).size;
+
 export function calcularFrequenciaTurma(
   registros: RegistroPresenca[],
+  justificativas: Justificativa[] = [],
 ): ResumoFrequenciaAluno[] {
   return listaAlunosTurmaMock.map((a) => {
     const base = historicoBaseTurmaMock[a.id] ?? {
@@ -42,8 +60,14 @@ export function calcularFrequenciaTurma(
     const novasPresencas = meus.filter((r) =>
       contaComoPresenca(r.status),
     ).length;
-    const presencas = base.presencas + novasPresencas;
-    const faltas = base.faltas + (meus.length - novasPresencas);
+
+    const faltasBrutas = base.faltas + (meus.length - novasPresencas);
+    const faltasAbonadas = Math.min(
+      faltasBrutas,
+      contarAbonos(justificativas, a.id),
+    );
+    const presencas = base.presencas + novasPresencas + faltasAbonadas;
+    const faltas = faltasBrutas - faltasAbonadas;
     const totalAulas = Math.max(base.totalAulas, presencas + faltas) || 1;
     const percentualFaltas = Number(((faltas / totalAulas) * 100).toFixed(1));
 
@@ -54,6 +78,7 @@ export function calcularFrequenciaTurma(
       totalAulas,
       presencas,
       faltas,
+      faltasAbonadas,
       percentualFrequencia: Number((100 - percentualFaltas).toFixed(1)),
       percentualFaltas,
       emRisco: percentualFaltas > LIMITE_FALTAS_PCT,
@@ -63,8 +88,10 @@ export function calcularFrequenciaTurma(
 
 export function useFrequenciaTurma() {
   const registros = useRegistros();
+  const justificativas = useJustificativas();
+
   return useMemo(() => {
-    const alunos = calcularFrequenciaTurma(registros);
+    const alunos = calcularFrequenciaTurma(registros, justificativas);
     const emRisco = alunos
       .filter((a) => a.emRisco)
       .sort((x, y) => y.percentualFaltas - x.percentualFaltas);
@@ -92,5 +119,5 @@ export function useFrequenciaTurma() {
       diasRegistrados,
       diarioHojeSalvo,
     };
-  }, [registros]);
+  }, [registros, justificativas]);
 }

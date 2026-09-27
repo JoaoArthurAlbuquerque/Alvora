@@ -23,6 +23,19 @@ import {
   FREQ_MINIMA,
   type SituacaoFrequencia,
 } from "../../services/diarioStore";
+import {
+  useAlertas,
+  alertaStore,
+  NOTA_MINIMA,
+  type MotivoAlerta,
+} from "../../services/radarRisco";
+import { DISCIPLINA_ID } from "../../services/frequenciaTurma";
+import {
+  justificativaStore,
+  useJustificativas,
+  aplicarAbonos,
+  type StatusJustificativa,
+} from "../../services/justificativaStore";
 
 type VarianteBadge = "success" | "warning" | "primary" | "info";
 
@@ -52,6 +65,15 @@ const BADGE_FREQ_GLOBAL: Record<
   reprovado: { variant: "warning", label: "Assiduidade Crítica" },
 };
 
+const SELO_JUST: Record<
+  StatusJustificativa,
+  { variant: VarianteBadge; label: string }
+> = {
+  pendente: { variant: "warning", label: "⏳ Em análise" },
+  aprovada: { variant: "success", label: "✓ Abonada" },
+  recusada: { variant: "warning", label: "✕ Recusada" },
+};
+
 const badgeMedia = (m: number): { variant: VarianteBadge; label: string } =>
   m >= 7
     ? { variant: "success", label: "Aprovado por Média" }
@@ -64,22 +86,30 @@ const semestreAtual = () => {
   return `${d.getFullYear()}.${d.getMonth() < 6 ? 1 : 2}`;
 };
 
+const formatarData = (iso: string) =>
+  new Date(iso + "T12:00").toLocaleDateString("pt-BR");
+
 export const PortalAluno: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabAluno>("dashboard");
   const semestre = semestreAtual();
 
-  // Frequência derivada dos registros salvos no diário
+  // Frequência = registros do diário + abonos aprovados
   const registros = useRegistros();
+  const justificativas = useJustificativas();
   const aluno = useMemo(
     () => ({
       ...alunoLogadoMock,
-      historicoFrequencia: aplicarRegistros(
-        alunoLogadoMock.historicoFrequencia,
-        registros,
+      historicoFrequencia: aplicarAbonos(
+        aplicarRegistros(
+          alunoLogadoMock.historicoFrequencia,
+          registros,
+          alunoLogadoMock.id,
+        ),
+        justificativas,
         alunoLogadoMock.id,
       ),
     }),
-    [registros],
+    [registros, justificativas],
   );
 
   // Chamada ao vivo (sincronizada entre abas)
@@ -157,6 +187,56 @@ export const PortalAluno: React.FC = () => {
     setFeedbackMsg("");
   };
 
+  // Justificativa de faltas
+  const [isJustOpen, setIsJustOpen] = useState(false);
+  const [justDisc, setJustDisc] = useState("");
+  const [justData, setJustData] = useState("");
+  const [justMotivo, setJustMotivo] = useState("");
+  const [justAnexo, setJustAnexo] = useState<string | undefined>();
+  const [justMsg, setJustMsg] = useState("");
+  const hojeISO = new Date().toISOString().slice(0, 10);
+
+  const minhasJust = useMemo(
+    () =>
+      justificativas
+        .filter((j) => j.alunoId === aluno.id)
+        .sort((a, b) => b.criadaEm - a.criadaEm),
+    [justificativas, aluno.id],
+  );
+
+  const abrirJust = (disciplinaId: string) => {
+    setJustDisc(disciplinaId);
+    setJustData("");
+    setJustMotivo("");
+    setJustAnexo(undefined);
+    setJustMsg("");
+    setIsJustOpen(true);
+  };
+
+  const enviarJust = (e: React.FormEvent) => {
+    e.preventDefault();
+    const disc = aluno.historicoFrequencia.find(
+      (h) => h.disciplinaId === justDisc,
+    );
+    if (!disc) return;
+    const r = justificativaStore.enviar({
+      alunoId: aluno.id,
+      alunoNome: aluno.nome,
+      disciplinaId: disc.disciplinaId,
+      disciplinaNome: disc.disciplinaNome,
+      dataFalta: justData,
+      motivo: justMotivo.trim(),
+      anexoNome: justAnexo,
+    });
+    if (r === "duplicada") {
+      setJustMsg(
+        "Já existe uma justificativa para essa data nessa disciplina. 🤔",
+      );
+      return;
+    }
+    setIsJustOpen(false);
+  };
+
   // Indicadores derivados
   const historico = aluno.historicoFrequencia;
   const frequenciaGlobalNum = historico.length
@@ -177,10 +257,48 @@ export const PortalAluno: React.FC = () => {
       )
     : null;
 
+  // Alertas enviados pelo gestor para este aluno
+  const todosAlertas = useAlertas();
+  const meusAlertas = useMemo(
+    () =>
+      todosAlertas.filter(
+        (a) =>
+          a.alunoId === aluno.id &&
+          a.notificado.aluno &&
+          !a.historico.some((h) => h.acao === "aluno ciente"),
+      ),
+    [todosAlertas, aluno.id],
+  );
+
+  const discAlerta = historico.find((h) => h.disciplinaId === DISCIPLINA_ID);
+  const limiteFaltas = discAlerta
+    ? Math.floor((discAlerta.totalAulas * (100 - FREQ_MINIMA)) / 100)
+    : 0;
+  const faltasRestantes = discAlerta
+    ? Math.max(0, limiteFaltas - discAlerta.faltas)
+    : 0;
+
+  const mensagemAlerta = (motivo: MotivoAlerta) => {
+    const nome = discAlerta?.disciplinaNome ?? "uma disciplina";
+    const faltas = discAlerta
+      ? `Você está com ${discAlerta.percentualFrequencia}% de frequência em ${nome}. ${
+          faltasRestantes > 0
+            ? `Restam só ${faltasRestantes} falta(s) até o limite.`
+            : "Você já atingiu o limite de faltas."
+        }`
+      : `Sua frequência em ${nome} está abaixo do mínimo.`;
+    const nota = `Sua média em ${nome} está abaixo de ${NOTA_MINIMA}. Procure o professor para montar um plano de recuperação.`;
+    return motivo === "FALTAS"
+      ? faltas
+      : motivo === "NOTA"
+        ? nota
+        : `${faltas} ${nota}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Navegação por Abas Horizontais */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#5170FF]/15">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-primary/15">
         {[
           { id: "dashboard", label: "Início" },
           { id: "disciplinas", label: "Minhas Disciplinas" },
@@ -193,8 +311,8 @@ export const PortalAluno: React.FC = () => {
             onClick={() => setActiveTab(tab.id as TabAluno)}
             className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 ${
               activeTab === tab.id
-                ? "bg-[#5170FF] text-white shadow-flat-sm"
-                : "bg-white text-slate-600 hover:bg-[#5170FF]/10 hover:text-[#5170FF] border border-[#5170FF]/10"
+                ? "bg-primary text-white shadow-flat-sm"
+                : "bg-white text-slate-600 hover:bg-primary/10 hover:text-primary border border-primary/10"
             }`}
           >
             {tab.label}
@@ -204,7 +322,7 @@ export const PortalAluno: React.FC = () => {
 
       {/* BANNER GLOBAL DE CHAMADA ATIVA */}
       {chamadaAtiva && (
-        <div className="bg-gradient-to-r from-[#5170FF] to-[#3B59FF] text-white p-5 rounded-2xl shadow-flat flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-primary to-[#3B59FF] text-white p-5 rounded-2xl shadow-flat flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
@@ -219,7 +337,7 @@ export const PortalAluno: React.FC = () => {
           </div>
           <Button
             variant="outline"
-            className="bg-white text-[#5170FF] border-none hover:bg-white/95 shrink-0 font-bold"
+            className="bg-white text-primary border-none hover:bg-white/95 shrink-0 font-bold"
             onClick={() => setIsCheckinOpen(true)}
           >
             Inserir PIN de Presença
@@ -227,13 +345,53 @@ export const PortalAluno: React.FC = () => {
         </div>
       )}
 
+      {/* BANNER DE ALERTA PEDAGÓGICO */}
+      {meusAlertas.map((al) => (
+        <div
+          key={al.id}
+          className="p-5 rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-rose-600">
+                Alerta da Coordenação • {al.motivo}
+              </span>
+            </div>
+            <p className="text-sm font-bold text-slate-900">
+              {mensagemAlerta(al.motivo)}
+            </p>
+            <p className="text-xs text-slate-500">
+              Ainda dá tempo de virar o jogo 💪 A coordenação está com você.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setActiveTab("frequencia")}
+            >
+              Ver Extrato
+            </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                alertaStore.registrar(al.id, "aluno ciente", aluno.id)
+              }
+            >
+              Estou ciente
+            </Button>
+          </div>
+        </div>
+      ))}
+
       {/* ABA 1: DASHBOARD */}
       {activeTab === "dashboard" && (
         <div className="space-y-6">
-          <Card className="bg-white border-[#5170FF]/10">
+          <Card className="bg-white border-primary/10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <span className="text-xs font-bold text-[#5170FF] uppercase tracking-wide">
+                <span className="text-xs font-bold text-primary uppercase tracking-wide">
                   {aluno.curso}
                 </span>
                 <h1 className="text-2xl font-bold text-slate-900 mt-1">
@@ -249,7 +407,7 @@ export const PortalAluno: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
-              <p className="text-xs font-bold text-[#5170FF] uppercase">
+              <p className="text-xs font-bold text-primary uppercase">
                 Média Geral
               </p>
               <p className="text-3xl font-extrabold text-slate-900 mt-2">
@@ -261,7 +419,7 @@ export const PortalAluno: React.FC = () => {
             </Card>
 
             <Card>
-              <p className="text-xs font-bold text-[#5170FF] uppercase">
+              <p className="text-xs font-bold text-primary uppercase">
                 Frequência Global
               </p>
               <p className="text-3xl font-extrabold text-slate-900 mt-2">
@@ -273,7 +431,7 @@ export const PortalAluno: React.FC = () => {
             </Card>
 
             <Card>
-              <p className="text-xs font-bold text-[#5170FF] uppercase">
+              <p className="text-xs font-bold text-primary uppercase">
                 Disciplinas em Risco
               </p>
               <p className="text-3xl font-extrabold text-slate-900 mt-2">
@@ -295,7 +453,7 @@ export const PortalAluno: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900">
                 Ponto de Atenção
               </h3>
-              <div className="p-4 rounded-xl bg-[#5170FF]/5 border border-[#5170FF]/10 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-800">
                     {pontoAtencao.disciplinaNome}
@@ -336,13 +494,13 @@ export const PortalAluno: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-slate-500">Aulas Concluídas</span>
-                    <span className="text-[#5170FF]">
+                    <span className="text-primary">
                       {dadas} / {disc.totalAulas}
                     </span>
                   </div>
-                  <div className="w-full bg-[#5170FF]/10 h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-primary/10 h-2 rounded-full overflow-hidden">
                     <div
-                      className="bg-[#5170FF] h-full rounded-full"
+                      className="bg-primary h-full rounded-full"
                       style={{ width: `${progresso}%` }}
                     />
                   </div>
@@ -366,7 +524,7 @@ export const PortalAluno: React.FC = () => {
             </p>
           </div>
 
-          <div className="divide-y divide-[#5170FF]/10">
+          <div className="divide-y divide-primary/10">
             {historico.map((item) => {
               const situacao = situacaoFrequencia(item.percentualFrequencia);
               const badge = BADGE_FREQ[situacao];
@@ -383,21 +541,30 @@ export const PortalAluno: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
+                      {item.faltas > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirJust(item.disciplinaId)}
+                        >
+                          Justificar falta
+                        </Button>
+                      )}
                       <Badge variant={badge.variant}>{badge.label}</Badge>
-                      <span className="text-base font-black text-[#5170FF]">
+                      <span className="text-base font-black text-primary">
                         {item.percentualFrequencia}%
                       </span>
                     </div>
                   </div>
 
-                  <div className="w-full bg-[#5170FF]/10 h-2.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-primary/10 h-2.5 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
                         situacao === "reprovado"
                           ? "bg-rose-500"
                           : situacao === "atencao"
                             ? "bg-amber-500"
-                            : "bg-[#5170FF]"
+                            : "bg-primary"
                       }`}
                       style={{ width: `${item.percentualFrequencia}%` }}
                     />
@@ -406,6 +573,40 @@ export const PortalAluno: React.FC = () => {
               );
             })}
           </div>
+
+          {minhasJust.length > 0 && (
+            <div className="pt-4 border-t border-primary/10 space-y-2">
+              <h4 className="text-xs font-bold text-slate-900 uppercase">
+                Minhas Justificativas
+              </h4>
+              {minhasJust.map((j) => (
+                <div
+                  key={j.id}
+                  className="p-3 rounded-xl bg-primary-soft border border-primary/10 flex justify-between items-start gap-2"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">
+                      {j.disciplinaNome} • {formatarData(j.dataFalta)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">{j.motivo}</p>
+                    {j.anexoNome && (
+                      <p className="text-[11px] text-primary">
+                        📎 {j.anexoNome}
+                      </p>
+                    )}
+                    {j.parecer && (
+                      <p className="text-[11px] text-slate-700 mt-1">
+                        💬 {j.parecer}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={SELO_JUST[j.status].variant}>
+                    {SELO_JUST[j.status].label}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 
@@ -420,7 +621,7 @@ export const PortalAluno: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-[#5170FF]/15 text-slate-500 uppercase tracking-wider">
+                  <tr className="border-b border-primary/15 text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-2">Disciplina</th>
                     <th className="py-3 px-2">AV1</th>
                     <th className="py-3 px-2">AV2</th>
@@ -429,7 +630,7 @@ export const PortalAluno: React.FC = () => {
                     <th className="py-3 px-2">Situação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#5170FF]/10 text-slate-800 font-medium">
+                <tbody className="divide-y divide-primary/10 text-slate-800 font-medium">
                   {boletimAlunoMock.map((b) => (
                     <tr key={b.id}>
                       <td className="py-3 px-2 font-bold">
@@ -438,7 +639,7 @@ export const PortalAluno: React.FC = () => {
                       <td className="py-3 px-2">{b.av1}</td>
                       <td className="py-3 px-2">{b.av2 ?? "—"}</td>
                       <td className="py-3 px-2">{b.atividadesContinuas}</td>
-                      <td className="py-3 px-2 font-bold text-[#5170FF]">
+                      <td className="py-3 px-2 font-bold text-primary">
                         {b.mediaParcial}
                       </td>
                       <td className="py-3 px-2">
@@ -462,7 +663,7 @@ export const PortalAluno: React.FC = () => {
           </Card>
 
           {/* Simulador de Nota Necessária */}
-          <Card className="space-y-4 bg-gradient-to-r from-[#5170FF]/5 via-white to-white border-[#5170FF]/20">
+          <Card className="space-y-4 bg-gradient-to-r from-primary/5 via-white to-white border-primary/20">
             <h3 className="text-sm font-bold text-slate-900">
               Simulador de Nota para Aprovação (AV2)
             </h3>
@@ -477,7 +678,7 @@ export const PortalAluno: React.FC = () => {
                   <select
                     value={discSimId}
                     onChange={(e) => setDiscSimId(e.target.value)}
-                    className="w-full text-xs p-2 rounded-xl border border-[#5170FF]/20 bg-white"
+                    className="w-full text-xs p-2 rounded-xl border border-primary/20 bg-white"
                   >
                     {pendentesAv2.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -487,7 +688,7 @@ export const PortalAluno: React.FC = () => {
                   </select>
                   <label className="block text-xs font-semibold text-slate-600">
                     Média Final Almejada:{" "}
-                    <span className="font-bold text-[#5170FF]">
+                    <span className="font-bold text-primary">
                       {notaDesejada.toFixed(1)}
                     </span>
                   </label>
@@ -500,10 +701,10 @@ export const PortalAluno: React.FC = () => {
                     onChange={(e) =>
                       setNotaDesejada(parseFloat(e.target.value))
                     }
-                    className="w-full accent-[#5170FF]"
+                    className="w-full accent-primary"
                   />
                 </div>
-                <div className="p-3 bg-white rounded-xl border border-[#5170FF]/15 text-center">
+                <div className="p-3 bg-white rounded-xl border border-primary/15 text-center">
                   <p className="text-[11px] text-slate-500">
                     Nota mínima necessária na AV2 em {discSim.disciplinaNome}:
                   </p>
@@ -512,7 +713,7 @@ export const PortalAluno: React.FC = () => {
                       Inalcançável só com a AV2 😅 Tente uma meta menor.
                     </p>
                   ) : (
-                    <p className="text-2xl font-black text-[#5170FF]">
+                    <p className="text-2xl font-black text-primary">
                       {notaNecessaria}
                     </p>
                   )}
@@ -538,7 +739,7 @@ export const PortalAluno: React.FC = () => {
               {requerimentosMock.map((r) => (
                 <div
                   key={r.id}
-                  className="p-3 rounded-xl bg-[#F5F7FF] border border-[#5170FF]/10 flex justify-between items-center"
+                  className="p-3 rounded-xl bg-primary-soft border border-primary/10 flex justify-between items-center"
                 >
                   <div>
                     <p className="text-xs font-bold text-slate-800">
@@ -567,7 +768,7 @@ export const PortalAluno: React.FC = () => {
               {boletosMock.map((b) => (
                 <div
                   key={b.id}
-                  className="p-3 rounded-xl bg-[#F5F7FF] border border-[#5170FF]/10 flex justify-between items-center"
+                  className="p-3 rounded-xl bg-primary-soft border border-primary/10 flex justify-between items-center"
                 >
                   <div>
                     <p className="text-xs font-bold text-slate-800">
@@ -626,7 +827,7 @@ export const PortalAluno: React.FC = () => {
                   setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))
                 }
                 placeholder="0000"
-                className="w-full text-center text-3xl font-black tracking-widest py-3 rounded-xl border border-[#5170FF]/20 focus:outline-none focus:ring-2 focus:ring-[#5170FF]/40 bg-[#F5F7FF]"
+                className="w-full text-center text-3xl font-black tracking-widest py-3 rounded-xl border border-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/40 bg-primary-soft"
                 required
               />
             </div>
@@ -647,6 +848,63 @@ export const PortalAluno: React.FC = () => {
             </Button>
           </form>
         )}
+      </Modal>
+
+      {/* MODAL DE JUSTIFICATIVA DE FALTA */}
+      <Modal
+        isOpen={isJustOpen}
+        onClose={() => setIsJustOpen(false)}
+        title="Justificar Falta"
+      >
+        <form onSubmit={enviarJust} className="space-y-3">
+          <p className="text-xs font-bold text-primary">
+            {historico.find((h) => h.disciplinaId === justDisc)?.disciplinaNome}
+          </p>
+          <label className="block text-xs font-bold text-slate-700">
+            Data da falta
+            <input
+              type="date"
+              required
+              max={hojeISO}
+              value={justData}
+              onChange={(e) => setJustData(e.target.value)}
+              className="mt-1 w-full text-xs p-2 rounded-xl border border-primary/20 bg-primary-soft"
+            />
+          </label>
+          <label className="block text-xs font-bold text-slate-700">
+            Motivo
+            <textarea
+              required
+              minLength={10}
+              rows={3}
+              value={justMotivo}
+              onChange={(e) => setJustMotivo(e.target.value)}
+              placeholder="Descreva o motivo (ex.: consulta médica)"
+              className="mt-1 w-full text-xs p-2 rounded-xl border border-primary/20 bg-primary-soft font-normal"
+            />
+          </label>
+          <label className="block text-xs font-bold text-slate-700">
+            Comprovante (opcional)
+            <input
+              type="file"
+              accept=".pdf,image/*"
+              onChange={(e) => setJustAnexo(e.target.files?.[0]?.name)}
+              className="mt-1 w-full text-xs font-normal"
+            />
+          </label>
+          {justMsg && (
+            <p className="text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-xl text-center">
+              {justMsg}
+            </p>
+          )}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!justData || justMotivo.trim().length < 10}
+          >
+            Enviar Justificativa
+          </Button>
+        </form>
       </Modal>
     </div>
   );
