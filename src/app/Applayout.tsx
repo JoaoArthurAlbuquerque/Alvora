@@ -1,144 +1,215 @@
-// src/app/Applayout.tsx
 import React, { useState } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import {
+  Menu,
+  X,
+  LogOut,
+  Sparkles,
+  CircleHelp,
+  CalendarDays,
+} from "lucide-react";
 import { useAuthStore } from "../core/auth/useAuthStore";
+import { cn } from "../core/lib/utils";
+import { navPorPapel, acoesExtras, rotuloPapel } from "./navegacao";
 import { AssistentePedagogicoModal } from "../modules/assistente-pedagogico/AssistentePedagogicoModal";
 import { CentralDuvidasDrawer } from "../modules/central-duvidas/CentralDuvidasDrawer";
 import { CalendarioModal } from "../modules/calendario/CalendarioModal";
 
-export const AppLayout: React.FC = () => {
-  const { user, logout } = useAuthStore();
-  const navigate = useNavigate();
-  const location = useLocation();
+const titulos = {
+  aluno: "Portal do Estudante",
+  professor: "Ambiente do Professor",
+  gestor: "Painel de Gestão Educacional",
+} as const;
 
+const botaoAcao =
+  "w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all";
+
+export const AppLayout: React.FC = () => {
+  const { usuario, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const [menuAberto, setMenuAberto] = useState(false);
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isDuvidasOpen, setIsDuvidasOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const getNavItems = () => {
-    switch (user?.role) {
-      case "aluno":
-        return [
-          { label: "Meu Painel", path: "/aluno" },
-          { label: "Disciplinas", path: "/aluno/disciplinas" },
-        ];
-      case "professor":
-        return [
-          { label: "Painel do Docente", path: "/professor" },
-          { label: "Frequência", path: "/professor/frequencia" },
-        ];
-      case "gestor":
-        return [
-          { label: "Painel Gestor", path: "/gestor" },
-          { label: "Relatórios", path: "/gestor/relatorios" },
-        ];
-      default:
-        return [];
-    }
+  if (!usuario) return null;
+  const papel = usuario.papel;
+
+  const fecharMenu = () => setMenuAberto(false);
+
+  const sair = () => {
+    logout();
+    navigate("/login", { replace: true });
   };
+
+  const irPara = (path: string) => {
+    fecharMenu();
+    navigate(path);
+  };
+
+  // Fecha o drawer antes de abrir modais/drawers
+  const abrir = (setter: (v: boolean) => void) => () => {
+    fecharMenu();
+    setter(true);
+  };
+
+  const conteudoSidebar = (
+    <>
+      <div className="flex items-center justify-between px-2 py-3 mb-4">
+        <img src="/alvora_blue.svg" alt="Alvora" className="h-8 w-auto" />
+        <button
+          onClick={fecharMenu}
+          className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-[#5170FF]/10"
+          aria-label="Fechar menu"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <nav className="space-y-1">
+        {navPorPapel[papel].map(({ label, path, icone: Icone }) => (
+          <NavLink
+            key={path}
+            to={path}
+            end={path === `/${papel}`}
+            onClick={fecharMenu}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200",
+                isActive
+                  ? "bg-[#5170FF] text-white shadow-flat-sm"
+                  : "text-slate-600 hover:bg-[#5170FF]/10 hover:text-[#5170FF]",
+              )
+            }
+          >
+            <Icone size={17} />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="mt-auto space-y-2 pt-4 border-t border-[#5170FF]/10">
+        <p className="px-3 text-xs font-semibold text-[#5170FF] uppercase tracking-wider mb-2">
+          Ações Rápidas
+        </p>
+        {acoesExtras[papel].map(({ label, path, icone: Icone }) => (
+          <button
+            key={label}
+            onClick={() => irPara(path)}
+            className={cn(
+              botaoAcao,
+              "bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10",
+            )}
+          >
+            <Icone size={15} className="text-[#5170FF]" /> {label}
+          </button>
+        ))}
+        <button
+          onClick={abrir(setIsAiOpen)}
+          className={cn(
+            botaoAcao,
+            "bg-[#5170FF]/10 text-[#5170FF] hover:bg-[#5170FF]/15",
+          )}
+        >
+          <Sparkles size={15} /> Assistente IA
+          <span className="ml-auto text-xs bg-white px-1.5 py-0.5 rounded-md shadow-2xs">
+            IA
+          </span>
+        </button>
+        <button
+          onClick={abrir(setIsDuvidasOpen)}
+          className={cn(
+            botaoAcao,
+            "bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10",
+          )}
+        >
+          <CircleHelp size={15} className="text-[#5170FF]" /> Central de Dúvidas
+        </button>
+        <button
+          onClick={abrir(setIsCalendarOpen)}
+          className={cn(
+            botaoAcao,
+            "bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10",
+          )}
+        >
+          <CalendarDays size={15} className="text-[#5170FF]" /> Calendário
+        </button>
+      </div>
+
+      <div className="pt-4 mt-4 border-t border-[#5170FF]/10 flex items-center justify-between">
+        <NavLink
+          to={`/${papel}/perfil`}
+          onClick={fecharMenu}
+          className="flex items-center gap-2.5 overflow-hidden"
+        >
+          <div className="w-9 h-9 rounded-full bg-[#5170FF]/15 text-[#5170FF] font-bold flex items-center justify-center text-sm shrink-0">
+            {usuario.nome.replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "").charAt(0)}
+          </div>
+          <div className="truncate">
+            <p className="text-xs font-bold text-slate-900 truncate">
+              {usuario.nome}
+            </p>
+            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#5170FF]/10 text-[#5170FF] border border-[#5170FF]/20">
+              {rotuloPapel[papel]}
+            </span>
+          </div>
+        </NavLink>
+        <button
+          onClick={sair}
+          title="Sair"
+          className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors"
+        >
+          <LogOut size={17} />
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div className="min-h-screen flex bg-[#F5F7FF]">
-      {/* Sidebar - Flat Design 2.0 */}
-      <aside className="w-64 bg-white border-r border-[#5170FF]/10 flex flex-col p-5 shadow-flat shrink-0 z-20">
-        <div className="flex items-center gap-3 px-2 py-3 mb-6">
-          <img src="/alvora_blue.svg" alt="Alvora" className="h-8 w-auto" />
-        </div>
-
-        <nav className="flex-1 space-y-1.5">
-          {getNavItems().map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={`w-full text-left px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
-                  isActive
-                    ? "bg-[#5170FF] text-white shadow-flat-sm"
-                    : "text-slate-600 hover:bg-[#5170FF]/8 hover:text-[#5170FF]"
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Ferramentas do Sistema */}
-        <div className="mt-auto space-y-2 pt-4 border-t border-[#5170FF]/10">
-          <p className="px-3 text-xs font-semibold text-[#5170FF] uppercase tracking-wider mb-2">
-            Ações Rápidas
-          </p>
-          <button
-            onClick={() => setIsAiOpen(true)}
-            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#5170FF]/10 text-[#5170FF] hover:bg-[#5170FF]/15 transition-all"
-          >
-            <span>Assistente IA</span>
-            <span className="text-xs bg-white px-1.5 py-0.5 rounded-md shadow-2xs">
-              IA
-            </span>
-          </button>
-          <button
-            onClick={() => setIsDuvidasOpen(true)}
-            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10 transition-all"
-          >
-            <span>Central de Dúvidas</span>
-          </button>
-          <button
-            onClick={() => setIsCalendarOpen(true)}
-            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#5170FF]/5 text-slate-700 hover:bg-[#5170FF]/10 transition-all"
-          >
-            <span>Calendário</span>
-          </button>
-        </div>
-
-        {/* Perfil e Sair */}
-        <div className="pt-4 mt-4 border-t border-[#5170FF]/10 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-9 h-9 rounded-full bg-[#5170FF]/15 text-[#5170FF] font-bold flex items-center justify-center text-sm shrink-0">
-              {user?.nome?.charAt(0) || "U"}
-            </div>
-            <div className="truncate">
-              <p className="text-xs font-bold text-slate-900 truncate">
-                {user?.nome}
-              </p>
-              <p className="text-[10px] text-[#5170FF] font-medium capitalize">
-                {user?.role}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={logout}
-            title="Sair"
-            className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors"
-          >
-            ➔
-          </button>
-        </div>
+      {/* Sidebar desktop */}
+      <aside className="hidden md:flex w-64 h-screen sticky top-0 bg-white border-r border-[#5170FF]/10 flex-col p-5 shadow-flat shrink-0 z-20 overflow-y-auto">
+        {conteudoSidebar}
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[#5170FF]/10 px-8 flex items-center justify-between sticky top-0 z-10">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
-            {user?.role === "aluno" && "Portal do Estudante"}
-            {user?.role === "professor" && "Ambiente do Professor"}
-            {user?.role === "gestor" && "Painel de Gestão Educacional"}
-          </h2>
+      {/* Drawer mobile */}
+      {menuAberto && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div
+            className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-sm"
+            onClick={fecharMenu}
+          />
+          <aside className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-white flex flex-col p-5 shadow-flat overflow-y-auto">
+            {conteudoSidebar}
+          </aside>
+        </div>
+      )}
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-medium px-3 py-1 rounded-full bg-[#5170FF]/10 text-[#5170FF]">
-              Ano Letivo 2026
-            </span>
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[#5170FF]/10 px-4 md:px-8 flex items-center justify-between gap-3 sticky top-0 z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setMenuAberto(true)}
+              className="md:hidden p-2.5 -ml-2 rounded-xl text-[#5170FF] hover:bg-[#5170FF]/10"
+              aria-label="Abrir menu"
+            >
+              <Menu size={20} />
+            </button>
+            <h2 className="text-xs md:text-sm font-bold text-slate-700 uppercase tracking-wide truncate">
+              {titulos[papel]}
+            </h2>
           </div>
+          <span className="shrink-0 text-xs font-medium px-3 py-1 rounded-full bg-[#5170FF]/10 text-[#5170FF]">
+            Ano Letivo 2026
+          </span>
         </header>
 
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
           <Outlet />
         </main>
       </div>
 
-      {/* Modais Globais do Sistema */}
       <AssistentePedagogicoModal
         isOpen={isAiOpen}
         onClose={() => setIsAiOpen(false)}

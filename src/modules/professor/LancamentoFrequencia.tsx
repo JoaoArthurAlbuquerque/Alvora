@@ -1,18 +1,45 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
-import { Badge } from "../../core/ui/Badge";
 import { Modal } from "../../core/ui/Modal";
 import { listaAlunosTurmaMock, sessaoFrequenciaAtiva } from "../../mocks/data";
+
+const DURACAO_MS = 5 * 60 * 1000;
+
+const formatarTempo = (seg: number) => {
+  const m = Math.floor(seg / 60);
+  const s = seg % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+};
 
 export const LancamentoFrequencia: React.FC = () => {
   const [alunos, setAlunos] = useState(listaAlunosTurmaMock);
   const [isModalPinOpen, setIsModalPinOpen] = useState(false);
-  const [chamadaAtiva, setChamadaAtiva] = useState(false);
-  const [tempoRestante, setTempoRestante] = useState(300);
+  const [expiraEm, setExpiraEm] = useState<number | null>(null);
+  const [agora, setAgora] = useState(0);
 
+  // Estado derivado: nada de setState para sincronizar
+  const tempoRestante = expiraEm
+    ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
+    : 0;
+  const chamadaAtiva = tempoRestante > 0;
+
+  // Timer: setState só dentro do callback (permitido pela regra)
   useEffect(() => {
-    if (chamadaAtiva) {
+    if (!expiraEm) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setAgora(now);
+      if (now >= expiraEm) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [expiraEm]);
+
+  const handleGerarPin = () => {
+    if (!chamadaAtiva) {
+      const now = Date.now();
+      setAgora(now);
+      setExpiraEm(now + DURACAO_MS);
       const confirmados = sessaoFrequenciaAtiva.alunosPresentesIds;
       setAlunos((prev) =>
         prev.map((a) =>
@@ -20,26 +47,6 @@ export const LancamentoFrequencia: React.FC = () => {
         ),
       );
     }
-  }, [chamadaAtiva]);
-
-  useEffect(() => {
-    if (!chamadaAtiva || tempoRestante <= 0) return;
-    const timer = setInterval(() => {
-      setTempoRestante((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setChamadaAtiva(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [chamadaAtiva, tempoRestante]);
-
-  const handleGerarPin = () => {
-    setChamadaAtiva(true);
-    setTempoRestante(300);
     setIsModalPinOpen(true);
   };
 
@@ -47,12 +54,6 @@ export const LancamentoFrequencia: React.FC = () => {
     setAlunos((prev) =>
       prev.map((a) => (a.id === id ? { ...a, presente: !a.presente } : a)),
     );
-  };
-
-  const formatarTempo = (seg: number) => {
-    const m = Math.floor(seg / 60);
-    const s = seg % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -137,7 +138,7 @@ export const LancamentoFrequencia: React.FC = () => {
           <div className="p-3 bg-[#F5F7FF] rounded-2xl max-w-xs mx-auto border border-[#5170FF]/10">
             <p className="text-xs text-slate-500">Expira em</p>
             <p className="text-2xl font-black text-amber-600">
-              {formatarTempo(tempoRestante)}
+              {chamadaAtiva ? formatarTempo(tempoRestante) : "Expirado"}
             </p>
           </div>
 

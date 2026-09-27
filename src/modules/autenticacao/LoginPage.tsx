@@ -12,7 +12,7 @@ export const LoginPage: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    login({ id: "1", nome: "João Albuquerque", email, role });
+    login(role);
     navigate(`/${role}`);
   };
 

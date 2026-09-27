@@ -1,4 +1,3 @@
-import React from "react";
 import {
   createBrowserRouter,
   RouterProvider,
@@ -11,51 +10,78 @@ import { PortalAluno } from "../modules/aluno/PortalAluno";
 import { PortalProfessor } from "../modules/professor/PortalProfessor";
 import { PortalGestor } from "../modules/gestor/PortalGestor";
 import { LancamentoFrequencia } from "../modules/professor/LancamentoFrequencia";
+import { EmConstrucao } from "../core/ui/EmConstrucao";
 import { useAuthStore } from "../core/auth/useAuthStore";
 
-const IndexRoute: React.FC = () => {
-  const usuario = useAuthStore((state) => state.usuario);
+function RedirecionarPorPapel() {
+  const usuario = useAuthStore((s) => s.usuario);
+  return <Navigate to={usuario ? `/${usuario.papel}` : "/login"} replace />;
+}
 
-  if (!usuario) return <Navigate to="/login" replace />;
+const placeholder = (paths: string[]) =>
+  paths.map((path) => ({ path, element: <EmConstrucao /> }));
 
-  if (usuario.papel === "aluno") return <PortalAluno />;
-  if (usuario.papel === "professor") return <PortalProfessor />;
-  if (usuario.papel === "gestor") return <PortalGestor />;
-
-  return <PortalAluno />;
-};
-
-export const router = createBrowserRouter([
+const router = createBrowserRouter([
+  { path: "/login", element: <LoginPage /> },
   {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/",
     element: <ProtectedRoute />,
     children: [
       {
-        path: "/",
         element: <AppLayout />,
         children: [
-          { index: true, element: <IndexRoute /> },
-          { path: "aluno", element: <PortalAluno /> },
-          { path: "professor", element: <PortalProfessor /> },
-          { path: "gestor", element: <PortalGestor /> },
-          { path: "frequencia", element: <LancamentoFrequencia /> },
+          { index: true, element: <RedirecionarPorPapel /> },
+          {
+            path: "aluno",
+            element: <ProtectedRoute papeis={["aluno"]} />,
+            children: [
+              { index: true, element: <PortalAluno /> },
+              ...placeholder([
+                "disciplinas",
+                "frequencia",
+                "boletim",
+                "secretaria",
+                "calendario",
+                "perfil",
+              ]),
+            ],
+          },
+          {
+            path: "professor",
+            element: <ProtectedRoute papeis={["professor"]} />,
+            children: [
+              { index: true, element: <PortalProfessor /> },
+              { path: "frequencia", element: <LancamentoFrequencia /> },
+              ...placeholder([
+                "turmas",
+                "notas",
+                "alertas",
+                "calendario",
+                "perfil",
+              ]),
+            ],
+          },
+          {
+            path: "gestor",
+            element: <ProtectedRoute papeis={["gestor"]} />,
+            children: [
+              { index: true, element: <PortalGestor /> },
+              ...placeholder([
+                "turmas",
+                "professores",
+                "regras",
+                "calendario",
+                "auditoria",
+                "perfil",
+              ]),
+            ],
+          },
         ],
       },
     ],
   },
-  {
-    path: "*",
-    element: <Navigate to="/" replace />,
-  },
+  { path: "*", element: <RedirecionarPorPapel /> },
 ]);
 
-// Componente AppRoutes exportado como export nomeado e default
-export const AppRoutes: React.FC = () => {
+export function AppRoutes() {
   return <RouterProvider router={router} />;
-};
-
-export default AppRoutes;
+}
