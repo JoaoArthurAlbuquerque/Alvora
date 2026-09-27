@@ -1,8 +1,23 @@
 import { useSyncExternalStore } from "react";
+import { FREQ_MINIMA } from "../config/regras";
 import type { RegistroPresenca, StatusPresenca } from "../types";
 
 const KEY = "alvora:diario";
 const EVT = "alvora:diario-change";
+
+/** Frequência mínima vem de config/regras; a faixa de alerta continua aqui (em %). */
+export { FREQ_MINIMA }; // PortalAluno continua importando daqui
+export const FREQ_ALERTA = 80;
+
+export type SituacaoFrequencia = "segura" | "atencao" | "reprovado";
+
+/** Classifica um percentual de frequência. */
+export const situacaoFrequencia = (percentual: number): SituacaoFrequencia =>
+  percentual < FREQ_MINIMA
+    ? "reprovado"
+    : percentual < FREQ_ALERTA
+      ? "atencao"
+      : "segura";
 
 /** Data local no formato YYYY-MM-DD (evita o "pulo" de dia do UTC). */
 const hoje = () => new Date().toLocaleDateString("sv-SE");

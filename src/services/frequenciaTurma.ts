@@ -4,14 +4,13 @@ import {
   historicoBaseTurmaMock,
   sessaoFrequenciaAtiva,
 } from "../mocks/data";
-import { useRegistros, contaComoPresenca } from "./diarioStore";
+import { useRegistros, contaComoPresenca, diarioStore } from "./diarioStore";
+import { LIMITE_FALTAS_PCT } from "../config/regras";
 import type { RegistroPresenca } from "../types";
 
 export const TURMA_ID = "turma-a";
 export const DISCIPLINA_ID = sessaoFrequenciaAtiva.disciplinaId;
-export const LIMITE_FALTAS_PCT = 20;
-
-const hoje = () => new Date().toLocaleDateString("sv-SE");
+export { LIMITE_FALTAS_PCT }; // PortalProfessor continua importando daqui
 
 export interface ResumoFrequenciaAluno {
   id: string;
@@ -84,12 +83,8 @@ export function useFrequenciaTurma() {
         )
         .map((r) => r.data),
     ).size;
-    const diarioHojeSalvo = registros.some(
-      (r) =>
-        r.turmaId === TURMA_ID &&
-        r.disciplinaId === DISCIPLINA_ID &&
-        r.data === hoje(),
-    );
+    // `registros` na dependência garante o recálculo quando o diário muda
+    const diarioHojeSalvo = diarioStore.jaSalvo(TURMA_ID, DISCIPLINA_ID);
     return {
       alunos,
       emRisco,

@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
 import { listaAlunosTurmaMock, sessaoFrequenciaAtiva } from "../../mocks/data";
 import { chamadaStore, useChamada } from "../../services/chamadaStore";
-import { diarioStore, useRegistros } from "../../services/diarioStore";
+import {
+  diarioStore,
+  useRegistros,
+  contaComoPresenca,
+} from "../../services/diarioStore";
+import { TURMA_ID, DISCIPLINA_ID } from "../../services/frequenciaTurma";
+import { REGRAS } from "../../config/regras";
 import type { StatusPresenca } from "../../types";
 
-const DURACAO_MS = 5 * 60 * 1000;
-const TURMA_ID = "turma-a";
-const DISCIPLINA_ID = sessaoFrequenciaAtiva.disciplinaId;
+const DURACAO_MS = REGRAS.validadePinMinutos * 60 * 1000;
 
 const formatarTempo = (seg: number) => {
   const m = Math.floor(seg / 60);
@@ -46,11 +50,8 @@ const VISUAL: Record<StatusPresenca, { label: string; cls: string }> = {
   },
 };
 
-const ehPresente = (s: StatusPresenca) =>
-  s === "PRESENTE_PIN" || s === "PRESENTE_MANUAL";
-
 export const LancamentoFrequencia: React.FC = () => {
-  const { pin, expiraEm, presentesIds } = useChamada();
+  const { chamadaId, pin, expiraEm, presentesIds } = useChamada();
   const registros = useRegistros();
   const [ajustesManuais, setAjustesManuais] = useState<
     Record<string, StatusPresenca>
@@ -64,26 +65,42 @@ export const LancamentoFrequencia: React.FC = () => {
     : 0;
   const chamadaAtiva = tempoRestante > 0;
 
-  // Reativo: reavalia sempre que os registros mudam
-  const jaSalvoHoje = registros.some(
-    (r) =>
-      r.turmaId === TURMA_ID &&
-      r.disciplinaId === DISCIPLINA_ID &&
-      r.data === hoje(),
-  );
+  // Reativo: `registros` muda → re-render → cache já atualizado
+  const jaSalvoHoje = diarioStore.jaSalvo(TURMA_ID, DISCIPLINA_ID);
 
-  // Derivado: ajuste manual > confirmação via PIN > valor do mock
+  // Status já gravados hoje (sobrevive ao F5)
+  const salvosHoje = useMemo(() => {
+    const d = hoje();
+    const mapa: Record<string, StatusPresenca> = {};
+    registros.forEach((r) => {
+      if (
+        r.turmaId === TURMA_ID &&
+        r.disciplinaId === DISCIPLINA_ID &&
+        r.data === d
+      )
+        mapa[r.alunoId] = r.status;
+    });
+    return mapa;
+  }, [registros]);
+
+  // Prioridade: ajuste manual > PIN (só com chamada ativa) > diário salvo > PIN antigo > mock
   const alunos = listaAlunosTurmaMock.map((a) => {
     const viaPin = presentesIds.includes(a.id);
-    const base: StatusPresenca = viaPin
-      ? "PRESENTE_PIN"
-      : a.presente
-        ? "PRESENTE_MANUAL"
-        : "FALTA";
-    return { ...a, viaPin, status: ajustesManuais[a.id] ?? base };
+    const salvo = salvosHoje[a.id];
+    const mock: StatusPresenca = a.presente ? "PRESENTE_MANUAL" : "FALTA";
+
+    const base: StatusPresenca =
+      chamadaAtiva && viaPin
+        ? "PRESENTE_PIN" // chamada ao vivo: o PIN novo manda
+        : (salvo ?? (viaPin ? "PRESENTE_PIN" : mock)); // senão: o diário manda
+
+    const status = ajustesManuais[a.id] ?? base;
+    return { ...a, viaPin: status === "PRESENTE_PIN", status };
   });
 
-  const totalPresentes = alunos.filter((a) => ehPresente(a.status)).length;
+  const totalPresentes = alunos.filter((a) =>
+    contaComoPresenca(a.status),
+  ).length;
 
   useEffect(() => {
     if (!expiraEm) return;
@@ -105,7 +122,10 @@ export const LancamentoFrequencia: React.FC = () => {
     if (!chamadaAtiva) {
       setAgora(Date.now());
       setAjustesManuais({});
-      chamadaStore.iniciar(DURACAO_MS);
+      chamadaStore.iniciar(DURACAO_MS, {
+        disciplinaId: DISCIPLINA_ID,
+        disciplinaNome: sessaoFrequenciaAtiva.disciplinaNome,
+      });
     }
     setIsModalPinOpen(true);
   };
@@ -135,10 +155,11 @@ export const LancamentoFrequencia: React.FC = () => {
     const total = diarioStore.salvar({
       turmaId: TURMA_ID,
       disciplinaId: DISCIPLINA_ID,
-      chamadaId: expiraEm ? `chamada-${expiraEm}` : undefined,
+      chamadaId: chamadaId ?? undefined,
       statusPorAluno,
     });
 
+    setAjustesManuais({}); // agora a fonte da verdade é o diário salvo
     setToast(
       eraAtualizacao
         ? `Diário atualizado: ${total} alunos 📒`
@@ -241,7 +262,7 @@ export const LancamentoFrequencia: React.FC = () => {
 
           <div className="inline-block bg-[#5170FF]/10 border-2 border-[#5170FF] px-10 py-6 rounded-3xl shadow-flat">
             <span className="text-6xl font-black text-[#5170FF] tracking-widest">
-              {pin ?? "----"}
+              {pin ?? "-".repeat(REGRAS.digitosPin)}
             </span>
           </div>
 

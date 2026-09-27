@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { REGRAS } from "../config/regras";
 
 const KEY = "alvora:chamada";
 const EVT = "alvora:chamada-change";
@@ -6,12 +7,28 @@ const EVT = "alvora:chamada-change";
 export type ResultadoConfirmacao = "ok" | "invalido" | "expirado" | "duplicado";
 
 export interface EstadoChamada {
+  chamadaId: string | null;
+  disciplinaId: string | null;
+  disciplinaNome: string | null;
   pin: string | null;
   expiraEm: number | null;
   presentesIds: string[];
 }
 
-const VAZIO: EstadoChamada = { pin: null, expiraEm: null, presentesIds: [] };
+export interface InfoChamada {
+  chamadaId?: string;
+  disciplinaId?: string;
+  disciplinaNome?: string;
+}
+
+const VAZIO: EstadoChamada = {
+  chamadaId: null,
+  disciplinaId: null,
+  disciplinaNome: null,
+  pin: null,
+  expiraEm: null,
+  presentesIds: [],
+};
 
 function ler(): EstadoChamada {
   try {
@@ -45,16 +62,20 @@ function subscribe(cb: () => void) {
   };
 }
 
+/** PIN numérico com a quantidade de dígitos definida em REGRAS. */
 const gerarPin = () =>
-  Math.floor(Math.random() * 10000)
+  Math.floor(Math.random() * 10 ** REGRAS.digitosPin)
     .toString()
-    .padStart(4, "0");
+    .padStart(REGRAS.digitosPin, "0");
 
 export const chamadaStore = {
   estado: () => cache,
 
-  iniciar(duracaoMs: number) {
+  iniciar(duracaoMs: number, info: InfoChamada = {}) {
     gravar({
+      chamadaId: info.chamadaId ?? `ch-${Date.now()}`,
+      disciplinaId: info.disciplinaId ?? null,
+      disciplinaNome: info.disciplinaNome ?? null,
       pin: gerarPin(),
       expiraEm: Date.now() + duracaoMs,
       presentesIds: [],
@@ -70,7 +91,7 @@ export const chamadaStore = {
   confirmar(pin: string, alunoId: string): ResultadoConfirmacao {
     const { pin: atual, expiraEm, presentesIds } = cache;
     if (!atual || !expiraEm || Date.now() >= expiraEm) return "expirado";
-    if (pin !== atual) return "invalido";
+    if (pin.trim() !== atual) return "invalido";
     if (presentesIds.includes(alunoId)) return "duplicado";
     gravar({ ...cache, presentesIds: [...presentesIds, alunoId] });
     return "ok";
