@@ -225,3 +225,14 @@ export const diariosDocentesMock: DiarioDocenteStatus[] = [
     frequenciaMediaTurma: 76.0,
   },
 ];
+// Histórico base da Turma A em Front-End (disciplinaId "1")
+export const historicoBaseTurmaMock: Record<
+  string,
+  { totalAulas: number; presencas: number; faltas: number }
+> = {
+  "aluno-1": { totalAulas: 40, presencas: 38, faltas: 2 }, // igual ao alunoLogadoMock
+  "aluno-2": { totalAulas: 40, presencas: 36, faltas: 4 },
+  "aluno-3": { totalAulas: 40, presencas: 34, faltas: 6 },
+  "aluno-4": { totalAulas: 40, presencas: 30, faltas: 10 }, // 25% → já em risco
+  "aluno-5": { totalAulas: 40, presencas: 32, faltas: 8 }, // 20% → mais uma falta e entra no risco 😬
+};

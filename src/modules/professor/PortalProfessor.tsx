@@ -4,9 +4,16 @@ import { Button } from "../../core/ui/Button";
 import { Badge } from "../../core/ui/Badge";
 import { TabProfessor } from "../../types";
 import { LancamentoFrequencia } from "./LancamentoFrequencia";
+import {
+  useFrequenciaTurma,
+  LIMITE_FALTAS_PCT,
+} from "../../services/frequenciaTurma";
 
 export const PortalProfessor: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabProfessor>("dashboard");
+  const { alunos, emRisco, mediaFrequencia, diasRegistrados, diarioHojeSalvo } =
+    useFrequenciaTurma();
+
   const [notasTurma, setNotasTurma] = useState([
     {
       id: "1",
@@ -26,23 +33,23 @@ export const PortalProfessor: React.FC = () => {
   ) => {
     setNotasTurma((prev) =>
       prev.map((n) => {
-        if (n.id === id) {
-          const av1 = campo === "av1" ? valor : n.av1;
-          const av2 = campo === "av2" ? valor : n.av2;
-          return {
-            ...n,
-            [campo]: valor,
-            media: Number(((av1 + av2) / 2).toFixed(2)),
-          };
-        }
-        return n;
+        if (n.id !== id) return n;
+        const av1 = campo === "av1" ? valor : n.av1;
+        const av2 = campo === "av2" ? valor : n.av2;
+        return {
+          ...n,
+          [campo]: valor,
+          media: Number(((av1 + av2) / 2).toFixed(2)),
+        };
       }),
     );
   };
 
+  const pad = (n: number) => n.toString().padStart(2, "0");
+
   return (
     <div className="space-y-6">
-      {/* Navegação por Abas Horizontais */}
+      {/* Navegação por Abas */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#5170FF]/15">
         {[
           { id: "dashboard", label: "Início" },
@@ -64,27 +71,44 @@ export const PortalProfessor: React.FC = () => {
         ))}
       </div>
 
-      {/* ABA 1: INÍCIO / RESUMO DOCENTE */}
+      {/* ABA 1: INÍCIO */}
       {activeTab === "dashboard" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <p className="text-xs font-bold text-[#5170FF] uppercase">
-                Aulas Hoje
+                Frequência Média da Turma
               </p>
-              <p className="text-3xl font-extrabold text-slate-900 mt-2">02</p>
+              <p
+                className={`text-3xl font-extrabold mt-2 ${
+                  mediaFrequencia >= 100 - LIMITE_FALTAS_PCT
+                    ? "text-emerald-600"
+                    : "text-rose-600"
+                }`}
+              >
+                {mediaFrequencia}%
+              </p>
               <Badge variant="primary" className="mt-3">
-                Lab 04 & Sala 12
+                {diasRegistrados} diário(s) lançado(s) no sistema
               </Badge>
             </Card>
 
             <Card>
               <p className="text-xs font-bold text-[#5170FF] uppercase">
-                Trabalhos p/ Corrigir
+                Diário de Hoje
               </p>
-              <p className="text-3xl font-extrabold text-amber-600 mt-2">14</p>
-              <Badge variant="warning" className="mt-3">
-                Prazo: 2 dias
+              <p
+                className={`text-3xl font-extrabold mt-2 ${
+                  diarioHojeSalvo ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                {diarioHojeSalvo ? "Salvo" : "Pendente"}
+              </p>
+              <Badge
+                variant={diarioHojeSalvo ? "primary" : "warning"}
+                className="mt-3"
+              >
+                {diarioHojeSalvo ? "Tudo em dia ✓" : "Faça a chamada"}
               </Badge>
             </Card>
 
@@ -92,12 +116,82 @@ export const PortalProfessor: React.FC = () => {
               <p className="text-xs font-bold text-[#5170FF] uppercase">
                 Alunos em Risco na Turma
               </p>
-              <p className="text-3xl font-extrabold text-rose-600 mt-2">03</p>
-              <Badge variant="danger" className="mt-3">
-                Faltas &gt; 20%
+              <p
+                className={`text-3xl font-extrabold mt-2 ${
+                  emRisco.length ? "text-rose-600" : "text-emerald-600"
+                }`}
+              >
+                {pad(emRisco.length)}
+              </p>
+              <Badge
+                variant={emRisco.length ? "danger" : "primary"}
+                className="mt-3"
+              >
+                Faltas &gt; {LIMITE_FALTAS_PCT}%
               </Badge>
             </Card>
           </div>
+
+          {/* Radar de risco */}
+          <Card className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-bold text-slate-900">
+                Radar de Frequência — Turma A
+              </h3>
+              <span className="text-xs text-slate-400">
+                {alunos.length} alunos • atualiza ao salvar o diário
+              </span>
+            </div>
+
+            {emRisco.length === 0 && (
+              <p className="text-xs font-bold text-emerald-600 bg-emerald-50 p-3 rounded-xl text-center">
+                🎉 Nenhum aluno em risco. Turma afiada!
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {[...alunos]
+                .sort((a, b) => b.percentualFaltas - a.percentualFaltas)
+                .map((a) => {
+                  const perto =
+                    !a.emRisco && a.percentualFaltas >= LIMITE_FALTAS_PCT - 2;
+                  const cor = a.emRisco
+                    ? "bg-rose-500"
+                    : perto
+                      ? "bg-amber-500"
+                      : "bg-emerald-500";
+                  return (
+                    <div key={a.id} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-bold text-slate-800">
+                          {a.nome}
+                          {a.emRisco && (
+                            <span className="ml-2 text-[10px] text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-lg">
+                              em risco
+                            </span>
+                          )}
+                          {perto && (
+                            <span className="ml-2 text-[10px] text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-lg">
+                              no limite
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-slate-500">
+                          {a.faltas} faltas / {a.totalAulas} aulas •{" "}
+                          <b>{a.percentualFrequencia}%</b>
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className={`h-full ${cor} transition-all duration-500`}
+                          style={{ width: `${a.percentualFrequencia}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </Card>
 
           <Card className="space-y-4">
             <h3 className="text-sm font-bold text-slate-900">
@@ -109,10 +203,12 @@ export const PortalProfessor: React.FC = () => {
                   <p className="text-sm font-bold text-slate-800">
                     Desenvolvimento Front-End
                   </p>
-                  <p className="text-xs text-slate-500">42 Alunos • Noturno</p>
+                  <p className="text-xs text-slate-500">
+                    {alunos.length} Alunos • Noturno
+                  </p>
                 </div>
                 <Button size="sm" onClick={() => setActiveTab("diario")}>
-                  Abrir Chamada
+                  {diarioHojeSalvo ? "Revisar Chamada" : "Abrir Chamada"}
                 </Button>
               </div>
 
@@ -136,10 +232,10 @@ export const PortalProfessor: React.FC = () => {
         </div>
       )}
 
-      {/* ABA 2: DIÁRIO DE CLASSE & CHAMADA */}
+      {/* ABA 2: DIÁRIO */}
       {activeTab === "diario" && <LancamentoFrequencia />}
 
-      {/* ABA 3: LANÇAMENTO DE NOTAS */}
+      {/* ABA 3: NOTAS */}
       {activeTab === "notas" && (
         <Card className="space-y-4">
           <div className="flex justify-between items-center pb-3 border-b border-[#5170FF]/10">
@@ -170,36 +266,23 @@ export const PortalProfessor: React.FC = () => {
                     <td className="py-3 px-2 font-bold text-slate-800">
                       {n.aluno}
                     </td>
-                    <td className="py-3 px-2">
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={n.av1}
-                        onChange={(e) =>
-                          handleNotaChange(
-                            n.id,
-                            "av1",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        className="w-16 px-2 py-1 rounded-lg border border-[#5170FF]/20 text-center text-xs font-bold bg-[#F5F7FF]"
-                      />
-                    </td>
-                    <td className="py-3 px-2">
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={n.av2}
-                        onChange={(e) =>
-                          handleNotaChange(
-                            n.id,
-                            "av2",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        className="w-16 px-2 py-1 rounded-lg border border-[#5170FF]/20 text-center text-xs font-bold bg-[#F5F7FF]"
-                      />
-                    </td>
+                    {(["av1", "av2"] as const).map((campo) => (
+                      <td key={campo} className="py-3 px-2">
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={n[campo]}
+                          onChange={(e) =>
+                            handleNotaChange(
+                              n.id,
+                              campo,
+                              parseFloat(e.target.value) || 0,
+                            )
+                          }
+                          className="w-16 px-2 py-1 rounded-lg border border-[#5170FF]/20 text-center text-xs font-bold bg-[#F5F7FF]"
+                        />
+                      </td>
+                    ))}
                     <td className="py-3 px-2 font-black text-[#5170FF]">
                       {n.media}
                     </td>
@@ -211,7 +294,7 @@ export const PortalProfessor: React.FC = () => {
         </Card>
       )}
 
-      {/* ABA 4: CONTEÚDOS & TAREFAS */}
+      {/* ABA 4: CONTEÚDOS */}
       {activeTab === "conteudos" && (
         <Card className="space-y-4">
           <div className="flex justify-between items-center">

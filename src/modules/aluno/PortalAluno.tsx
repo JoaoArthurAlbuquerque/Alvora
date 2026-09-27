@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card } from "../../core/ui/Card";
 import { Badge } from "../../core/ui/Badge";
 import { Button } from "../../core/ui/Button";
@@ -16,6 +16,7 @@ import {
   useChamada,
   type ResultadoConfirmacao,
 } from "../../services/chamadaStore";
+import { useRegistros, aplicarRegistros } from "../../services/diarioStore";
 
 const MENSAGENS_ERRO: Record<
   Exclude<ResultadoConfirmacao, "ok" | "duplicado">,
@@ -27,8 +28,21 @@ const MENSAGENS_ERRO: Record<
 
 export const PortalAluno: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabAluno>("dashboard");
-  const [aluno, setAluno] = useState(alunoLogadoMock);
   const sessaoInfo = sessaoFrequenciaAtiva; // só nome/id da disciplina
+
+  // Frequência derivada dos registros salvos no diário
+  const registros = useRegistros();
+  const aluno = useMemo(
+    () => ({
+      ...alunoLogadoMock,
+      historicoFrequencia: aplicarRegistros(
+        alunoLogadoMock.historicoFrequencia,
+        registros,
+        alunoLogadoMock.id,
+      ),
+    }),
+    [registros],
+  );
 
   // Chamada ao vivo (sincronizada entre abas)
   const { expiraEm } = useChamada();
@@ -79,22 +93,9 @@ export const PortalAluno: React.FC = () => {
       minute: "2-digit",
     });
     setStatusCheckin("success");
-    setFeedbackMsg(`Presença confirmada com sucesso às ${hora}!`);
-
-    setAluno((prev) => ({
-      ...prev,
-      historicoFrequencia: prev.historicoFrequencia.map((item) =>
-        item.disciplinaId === sessaoInfo.disciplinaId
-          ? {
-              ...item,
-              presencas: item.presencas + 1,
-              percentualFrequencia: Number(
-                (((item.presencas + 1) / item.totalAulas) * 100).toFixed(1),
-              ),
-            }
-          : item,
-      ),
-    }));
+    setFeedbackMsg(
+      `Presença registrada às ${hora}! Ela entra no seu extrato quando o professor salvar o diário. ✅`,
+    );
   };
 
   const closeCheckinModal = () => {
@@ -103,6 +104,15 @@ export const PortalAluno: React.FC = () => {
     setStatusCheckin("idle");
     setFeedbackMsg("");
   };
+
+  const frequenciaGlobal = aluno.historicoFrequencia.length
+    ? (
+        aluno.historicoFrequencia.reduce(
+          (acc, h) => acc + h.percentualFrequencia,
+          0,
+        ) / aluno.historicoFrequencia.length
+      ).toFixed(1)
+    : "0.0";
 
   return (
     <div className="space-y-6">
@@ -192,13 +202,7 @@ export const PortalAluno: React.FC = () => {
                 Frequência Global
               </p>
               <p className="text-3xl font-extrabold text-slate-900 mt-2">
-                {(
-                  aluno.historicoFrequencia.reduce(
-                    (acc, h) => acc + h.percentualFrequencia,
-                    0,
-                  ) / aluno.historicoFrequencia.length
-                ).toFixed(1)}
-                %
+                {frequenciaGlobal}%
               </p>
               <Badge variant="primary" className="mt-3">
                 Assiduidade Regular

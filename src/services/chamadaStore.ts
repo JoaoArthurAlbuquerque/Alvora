@@ -1,72 +1,82 @@
 import { useSyncExternalStore } from "react";
 
 const KEY = "alvora:chamada";
-
-export type ChamadaState = {
-  pin: string | null;
-  expiraEm: number | null;
-  presentesIds: string[];
-};
+const EVT = "alvora:chamada-change";
 
 export type ResultadoConfirmacao = "ok" | "invalido" | "expirado" | "duplicado";
 
-const VAZIO: ChamadaState = { pin: null, expiraEm: null, presentesIds: [] };
-
-let cacheRaw: string | null = null;
-let cache: ChamadaState = VAZIO;
-const listeners = new Set<() => void>();
-
-function ler(): ChamadaState {
-  const raw = localStorage.getItem(KEY);
-  if (raw !== cacheRaw) {
-    cacheRaw = raw;
-    try {
-      cache = raw ? (JSON.parse(raw) as ChamadaState) : VAZIO;
-    } catch {
-      cache = VAZIO;
-    }
-  }
-  return cache;
+export interface EstadoChamada {
+  pin: string | null;
+  expiraEm: number | null;
+  presentesIds: string[];
 }
 
-function gravar(state: ChamadaState) {
-  localStorage.setItem(KEY, JSON.stringify(state));
-  listeners.forEach((l) => l());
+const VAZIO: EstadoChamada = { pin: null, expiraEm: null, presentesIds: [] };
+
+function ler(): EstadoChamada {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return v && typeof v === "object" ? { ...VAZIO, ...v } : VAZIO;
+  } catch {
+    return VAZIO;
+  }
+}
+
+let cache: EstadoChamada = ler();
+
+function gravar(estado: EstadoChamada) {
+  localStorage.setItem(KEY, JSON.stringify(estado));
+  cache = estado;
+  window.dispatchEvent(new Event(EVT));
 }
 
 function subscribe(cb: () => void) {
-  listeners.add(cb);
   const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) cb();
+    if (e.key === KEY) {
+      cache = ler();
+      cb();
+    }
   };
-  window.addEventListener("storage", onStorage); // sincroniza outras abas
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(EVT, cb);
   return () => {
-    listeners.delete(cb);
     window.removeEventListener("storage", onStorage);
+    window.removeEventListener(EVT, cb);
   };
 }
 
+const gerarPin = () =>
+  Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, "0");
+
 export const chamadaStore = {
-  iniciar(duracaoMs: number): string {
-    const pin = String(Math.floor(1000 + Math.random() * 9000));
-    gravar({ pin, expiraEm: Date.now() + duracaoMs, presentesIds: [] });
-    return pin;
+  estado: () => cache,
+
+  iniciar(duracaoMs: number) {
+    gravar({
+      pin: gerarPin(),
+      expiraEm: Date.now() + duracaoMs,
+      presentesIds: [],
+    });
   },
 
+  /** Expira a chamada agora, mas mantém os presentes para salvar no diário. */
   encerrar() {
-    gravar({ ...ler(), expiraEm: Date.now() });
+    if (!cache.expiraEm) return;
+    gravar({ ...cache, expiraEm: Math.min(cache.expiraEm, Date.now()) });
   },
 
   confirmar(pin: string, alunoId: string): ResultadoConfirmacao {
-    const s = ler();
-    if (!s.pin || s.pin !== pin.trim()) return "invalido";
-    if (!s.expiraEm || Date.now() >= s.expiraEm) return "expirado";
-    if (s.presentesIds.includes(alunoId)) return "duplicado";
-    gravar({ ...s, presentesIds: [...s.presentesIds, alunoId] });
+    const { pin: atual, expiraEm, presentesIds } = cache;
+    if (!atual || !expiraEm || Date.now() >= expiraEm) return "expirado";
+    if (pin !== atual) return "invalido";
+    if (presentesIds.includes(alunoId)) return "duplicado";
+    gravar({ ...cache, presentesIds: [...presentesIds, alunoId] });
     return "ok";
   },
+
+  limpar: () => gravar(VAZIO),
 };
 
-export function useChamada(): ChamadaState {
-  return useSyncExternalStore(subscribe, ler, () => VAZIO);
-}
+export const useChamada = () => useSyncExternalStore(subscribe, () => cache);
