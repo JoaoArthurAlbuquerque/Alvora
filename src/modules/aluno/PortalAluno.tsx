@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "../../core/ui/Card";
 import { Badge } from "../../core/ui/Badge";
 import { Button } from "../../core/ui/Button";
@@ -11,11 +11,39 @@ import {
   requerimentosMock,
   boletosMock,
 } from "../../mocks/data";
+import {
+  chamadaStore,
+  useChamada,
+  type ResultadoConfirmacao,
+} from "../../services/chamadaStore";
+
+const MENSAGENS_ERRO: Record<
+  Exclude<ResultadoConfirmacao, "ok" | "duplicado">,
+  string
+> = {
+  invalido: "Código PIN incorreto. Confira no data-show e tente novamente.",
+  expirado: "Esta chamada já expirou. Peça ao professor um novo PIN.",
+};
 
 export const PortalAluno: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabAluno>("dashboard");
   const [aluno, setAluno] = useState(alunoLogadoMock);
-  const [sessaoAtiva] = useState(sessaoFrequenciaAtiva);
+  const sessaoInfo = sessaoFrequenciaAtiva; // só nome/id da disciplina
+
+  // Chamada ao vivo (sincronizada entre abas)
+  const { expiraEm } = useChamada();
+  const [agora, setAgora] = useState(() => Date.now());
+  const chamadaAtiva = !!expiraEm && expiraEm > agora;
+
+  useEffect(() => {
+    if (!expiraEm) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setAgora(now);
+      if (now >= expiraEm) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [expiraEm]);
 
   // Estados do Modal de Check-in por PIN
   const [isCheckinOpen, setIsCheckinOpen] = useState(false);
@@ -30,32 +58,43 @@ export const PortalAluno: React.FC = () => {
 
   const handleValidarPin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput.trim() === sessaoAtiva.pinCode) {
-      const hora = new Date().toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      setStatusCheckin("success");
-      setFeedbackMsg(`Presença confirmada com sucesso às ${hora}!`);
+    const resultado = chamadaStore.confirmar(pinInput, aluno.id);
+    setAgora(Date.now());
 
-      setAluno((prev) => ({
-        ...prev,
-        historicoFrequencia: prev.historicoFrequencia.map((item) =>
-          item.disciplinaId === sessaoAtiva.disciplinaId
-            ? {
-                ...item,
-                presencas: item.presencas + 1,
-                percentualFrequencia: Number(
-                  (((item.presencas + 1) / item.totalAulas) * 100).toFixed(1),
-                ),
-              }
-            : item,
-        ),
-      }));
-    } else {
-      setStatusCheckin("error");
-      setFeedbackMsg("Código PIN incorreto ou expirado. Tente novamente.");
+    if (resultado === "duplicado") {
+      setStatusCheckin("success");
+      setFeedbackMsg("Sua presença já estava confirmada nesta chamada. 😉");
+      return;
     }
+
+    if (resultado !== "ok") {
+      setStatusCheckin("error");
+      setFeedbackMsg(MENSAGENS_ERRO[resultado]);
+      setPinInput("");
+      return;
+    }
+
+    const hora = new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    setStatusCheckin("success");
+    setFeedbackMsg(`Presença confirmada com sucesso às ${hora}!`);
+
+    setAluno((prev) => ({
+      ...prev,
+      historicoFrequencia: prev.historicoFrequencia.map((item) =>
+        item.disciplinaId === sessaoInfo.disciplinaId
+          ? {
+              ...item,
+              presencas: item.presencas + 1,
+              percentualFrequencia: Number(
+                (((item.presencas + 1) / item.totalAulas) * 100).toFixed(1),
+              ),
+            }
+          : item,
+      ),
+    }));
   };
 
   const closeCheckinModal = () => {
@@ -90,8 +129,8 @@ export const PortalAluno: React.FC = () => {
         ))}
       </div>
 
-      {/* BANNER GLOBAL DE CHAMADA ATIVA (Aparece em qualquer aba se ativa) */}
-      {sessaoAtiva.ativa && (
+      {/* BANNER GLOBAL DE CHAMADA ATIVA */}
+      {chamadaAtiva && (
         <div className="bg-gradient-to-r from-[#5170FF] to-[#3B59FF] text-white p-5 rounded-2xl shadow-flat flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -100,9 +139,7 @@ export const PortalAluno: React.FC = () => {
                 Chamada ao Vivo Aberta
               </span>
             </div>
-            <h3 className="text-base font-bold">
-              {sessaoAtiva.disciplinaNome}
-            </h3>
+            <h3 className="text-base font-bold">{sessaoInfo.disciplinaNome}</h3>
             <p className="text-xs text-white/80">
               Digite o PIN exibido em sala para validar sua presença.
             </p>
@@ -396,7 +433,6 @@ export const PortalAluno: React.FC = () => {
       {activeTab === "secretaria" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Requerimentos */}
             <Card className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold text-slate-900">
@@ -429,7 +465,6 @@ export const PortalAluno: React.FC = () => {
               </div>
             </Card>
 
-            {/* Mensalidades */}
             <Card className="space-y-4">
               <h3 className="text-sm font-bold text-slate-900">
                 Extrato Financeiro
@@ -488,9 +523,12 @@ export const PortalAluno: React.FC = () => {
               </label>
               <input
                 type="text"
+                inputMode="numeric"
                 maxLength={4}
                 value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
+                onChange={(e) =>
+                  setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
                 placeholder="0000"
                 className="w-full text-center text-3xl font-black tracking-widest py-3 rounded-xl border border-[#5170FF]/20 focus:outline-none focus:ring-2 focus:ring-[#5170FF]/40 bg-[#F5F7FF]"
                 required
@@ -503,7 +541,12 @@ export const PortalAluno: React.FC = () => {
               </p>
             )}
 
-            <Button type="submit" className="w-full" size="lg">
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={pinInput.length !== 4}
+            >
               Confirmar PIN
             </Button>
           </form>
