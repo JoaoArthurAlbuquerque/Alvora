@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { Radio, KeyRound, Save, Users, X, Zap } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
@@ -12,43 +13,10 @@ import {
 import { TURMA_ID, DISCIPLINA_ID } from "../../services/frequenciaTurma";
 import { REGRAS } from "../../config/regras";
 import type { StatusPresenca } from "../../types";
+import { cn } from "../../core/lib/utils";
+import { PROXIMO, VISUAL, formatarTempo, hoje, iniciais } from "./constantes";
 
 const DURACAO_MS = REGRAS.validadePinMinutos * 60 * 1000;
-
-const formatarTempo = (seg: number) => {
-  const m = Math.floor(seg / 60);
-  const s = seg % 60;
-  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-};
-
-const hoje = () => new Date().toLocaleDateString("sv-SE");
-
-// Ciclo do clique: Presente → Falta → Justificada → Presente
-const PROXIMO: Record<StatusPresenca, StatusPresenca> = {
-  PRESENTE_PIN: "FALTA",
-  PRESENTE_MANUAL: "FALTA",
-  FALTA: "FALTA_JUSTIFICADA",
-  FALTA_JUSTIFICADA: "PRESENTE_MANUAL",
-};
-
-const VISUAL: Record<StatusPresenca, { label: string; cls: string }> = {
-  PRESENTE_PIN: {
-    label: "✓ Presente",
-    cls: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
-  },
-  PRESENTE_MANUAL: {
-    label: "✓ Presente",
-    cls: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
-  },
-  FALTA: {
-    label: "✕ Falta",
-    cls: "bg-rose-500/10 text-rose-600 border border-rose-500/20",
-  },
-  FALTA_JUSTIFICADA: {
-    label: "⚑ Justificada",
-    cls: "bg-amber-500/10 text-amber-600 border border-amber-500/20",
-  },
-};
 
 export const LancamentoFrequencia: React.FC = () => {
   const { chamadaId, pin, expiraEm, presentesIds } = useChamada();
@@ -64,11 +32,8 @@ export const LancamentoFrequencia: React.FC = () => {
     ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
     : 0;
   const chamadaAtiva = tempoRestante > 0;
-
-  // Reativo: `registros` muda → re-render → cache já atualizado
   const jaSalvoHoje = diarioStore.jaSalvo(TURMA_ID, DISCIPLINA_ID);
 
-  // Status já gravados hoje (sobrevive ao F5)
   const salvosHoje = useMemo(() => {
     const d = hoje();
     const mapa: Record<string, StatusPresenca> = {};
@@ -83,17 +48,14 @@ export const LancamentoFrequencia: React.FC = () => {
     return mapa;
   }, [registros]);
 
-  // Prioridade: ajuste manual > PIN (só com chamada ativa) > diário salvo > PIN antigo > mock
   const alunos = listaAlunosTurmaMock.map((a) => {
     const viaPin = presentesIds.includes(a.id);
     const salvo = salvosHoje[a.id];
     const mock: StatusPresenca = a.presente ? "PRESENTE_MANUAL" : "FALTA";
-
     const base: StatusPresenca =
       chamadaAtiva && viaPin
-        ? "PRESENTE_PIN" // chamada ao vivo: o PIN novo manda
-        : (salvo ?? (viaPin ? "PRESENTE_PIN" : mock)); // senão: o diário manda
-
+        ? "PRESENTE_PIN"
+        : (salvo ?? (viaPin ? "PRESENTE_PIN" : mock));
     const status = ajustesManuais[a.id] ?? base;
     return { ...a, viaPin: status === "PRESENTE_PIN", status };
   });
@@ -101,6 +63,7 @@ export const LancamentoFrequencia: React.FC = () => {
   const totalPresentes = alunos.filter((a) =>
     contaComoPresenca(a.status),
   ).length;
+  const pct = alunos.length ? (totalPresentes / alunos.length) * 100 : 0;
 
   useEffect(() => {
     if (!expiraEm) return;
@@ -136,21 +99,16 @@ export const LancamentoFrequencia: React.FC = () => {
     setIsModalPinOpen(false);
   };
 
-  const alternarStatus = (id: string, atual: StatusPresenca) => {
+  const alternarStatus = (id: string, atual: StatusPresenca) =>
     setAjustesManuais((prev) => ({ ...prev, [id]: PROXIMO[atual] }));
-  };
 
   const handleSalvarDiario = () => {
     if (chamadaAtiva) {
-      chamadaStore.encerrar(); // fecha o PIN para ninguém entrar depois
+      chamadaStore.encerrar();
       setAgora(Date.now());
     }
-
     const statusPorAluno: Record<string, StatusPresenca> = {};
-    alunos.forEach((a) => {
-      statusPorAluno[a.id] = a.status;
-    });
-
+    alunos.forEach((a) => (statusPorAluno[a.id] = a.status));
     const eraAtualizacao = jaSalvoHoje;
     const total = diarioStore.salvar({
       turmaId: TURMA_ID,
@@ -158,8 +116,7 @@ export const LancamentoFrequencia: React.FC = () => {
       chamadaId: chamadaId ?? undefined,
       statusPorAluno,
     });
-
-    setAjustesManuais({}); // agora a fonte da verdade é o diário salvo
+    setAjustesManuais({});
     setToast(
       eraAtualizacao
         ? `Diário atualizado: ${total} alunos 📒`
@@ -167,118 +124,280 @@ export const LancamentoFrequencia: React.FC = () => {
     );
   };
 
+  const r = 34,
+    c = 2 * Math.PI * r;
+  const digitos = (pin ?? "-".repeat(REGRAS.digitosPin)).split("");
+  const urgente = chamadaAtiva && tempoRestante <= 30;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">
-            Diário de Classe & Chamada ao Vivo
-          </h2>
-          <p className="text-xs text-slate-500">
-            {sessaoFrequenciaAtiva.disciplinaNome} • Turma A
-          </p>
-          {jaSalvoHoje && (
-            <span className="inline-block mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-lg">
-              ✓ Diário de hoje já salvo
-            </span>
+      {/* Cabeçalho */}
+      <div
+        className={cn(
+          "relative overflow-hidden p-5 rounded-2xl flex flex-col md:flex-row md:items-center gap-5",
+          chamadaAtiva
+            ? "bg-brand text-white shadow-glow"
+            : "bg-white shadow-flat",
+        )}
+      >
+        <div
+          className={cn(
+            "absolute -right-10 -top-12 w-40 h-40 rounded-full",
+            chamadaAtiva ? "bg-white/10" : "bg-primary/5",
           )}
+        />
+
+        <div className="relative w-20 h-20 shrink-0">
+          <svg viewBox="0 0 80 80" className="w-20 h-20 -rotate-90">
+            <circle
+              cx="40"
+              cy="40"
+              r={r}
+              fill="none"
+              strokeWidth="7"
+              className={chamadaAtiva ? "stroke-white/20" : "stroke-slate-100"}
+            />
+            <circle
+              cx="40"
+              cy="40"
+              r={r}
+              fill="none"
+              strokeWidth="7"
+              strokeLinecap="round"
+              strokeDasharray={c}
+              strokeDashoffset={c - (pct / 100) * c}
+              className={chamadaAtiva ? "stroke-white" : "stroke-primary"}
+              style={{
+                transition: "stroke-dashoffset .8s cubic-bezier(.22,1,.36,1)",
+              }}
+            />
+          </svg>
+          <span className="absolute inset-0 flex flex-col items-center justify-center">
+            <span
+              className={cn(
+                "text-lg font-extrabold tabular leading-none",
+                !chamadaAtiva && "text-ink",
+              )}
+            >
+              {totalPresentes}
+            </span>
+            <span
+              className={cn(
+                "text-[10px]",
+                chamadaAtiva ? "text-white/70" : "text-slate-400",
+              )}
+            >
+              de {alunos.length}
+            </span>
+          </span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={handleGerarPin}
-            variant={chamadaAtiva ? "secondary" : "primary"}
+        <div className="relative flex-1 min-w-0">
+          {chamadaAtiva ? (
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/70 flex items-center gap-1.5">
+              <Radio size={12} className="animate-pulse" /> Chamada ao vivo ·{" "}
+              {formatarTempo(tempoRestante)}
+            </p>
+          ) : (
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-primary">
+              Diário de classe
+            </p>
+          )}
+          <h2
+            className={cn(
+              "text-lg font-extrabold truncate",
+              !chamadaAtiva && "text-ink",
+            )}
           >
-            {chamadaAtiva ? "Exibir PIN da Chamada" : "Gerar PIN de Chamada"}
+            {sessaoFrequenciaAtiva.disciplinaNome}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span
+              className={cn(
+                "text-xs",
+                chamadaAtiva ? "text-white/80" : "text-slate-400",
+              )}
+            >
+              Turma A
+            </span>
+            {jaSalvoHoje && (
+              <span
+                className={cn(
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                  chamadaAtiva
+                    ? "bg-white/20"
+                    : "text-emerald-600 bg-emerald-500/10",
+                )}
+              >
+                ✓ Diário de hoje salvo
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="relative flex flex-wrap gap-2">
+          <Button
+            icon={<KeyRound size={16} />}
+            onClick={handleGerarPin}
+            className={cn(
+              chamadaAtiva &&
+                "bg-white text-primary! hover:bg-white hover:-translate-y-0.5 shadow-lg",
+            )}
+          >
+            {chamadaAtiva ? "Exibir PIN" : "Gerar PIN"}
           </Button>
-          <Button variant="outline" onClick={handleSalvarDiario}>
-            {jaSalvoHoje ? "Atualizar Diário" : "Salvar Diário"}
+          <Button
+            variant="outline"
+            icon={<Save size={16} />}
+            onClick={handleSalvarDiario}
+            className={cn(
+              chamadaAtiva &&
+                "border-white/40 text-white! bg-white/10 hover:bg-white/20",
+            )}
+          >
+            {jaSalvoHoje ? "Atualizar diário" : "Salvar diário"}
           </Button>
         </div>
       </div>
 
-      {toast && (
-        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 text-center">
-          {toast}
-        </div>
-      )}
-
-      <Card>
-        <div className="flex justify-between items-center mb-4 pb-3 border-b border-primary/10">
-          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Alunos Confirmados ({totalPresentes}/{alunos.length})
+      {/* Lista */}
+      <Card className="space-y-4">
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <h3 className="text-lg font-extrabold text-ink flex items-center gap-2">
+            <Users size={18} className="text-primary" /> Alunos
             {chamadaAtiva && (
-              <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 normal-case">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />{" "}
                 ao vivo
               </span>
             )}
           </h3>
-          <span className="text-xs text-slate-400">
-            Clique para alternar P / F / Justificada
+          <span className="text-[11px] text-slate-400">
+            Toque no status para alternar P → F → J
           </span>
         </div>
 
-        <div className="divide-y divide-primary/10">
-          {alunos.map((aluno) => (
-            <div
-              key={aluno.id}
-              className="py-3 flex items-center justify-between"
-            >
-              <div>
-                <p className="text-sm font-bold text-slate-800">
-                  {aluno.nome}
-                  {aluno.viaPin && (
-                    <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg">
-                      via PIN
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 stagger">
+          {alunos.map((a) => {
+            const v = VISUAL[a.status];
+            return (
+              <div
+                key={a.id}
+                className="group flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-primary/5 transition-colors"
+              >
+                <div className="relative shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-brand text-white text-xs font-bold flex items-center justify-center">
+                    {iniciais(a.nome)}
+                  </div>
+                  {a.viaPin && (
+                    <span
+                      className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white shadow flex items-center justify-center animate-pop"
+                      title="Confirmou via PIN"
+                    >
+                      <Zap size={11} className="text-primary fill-primary" />
                     </span>
                   )}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Matrícula: {aluno.matricula}
-                </p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-ink truncate">
+                    {a.nome}
+                  </p>
+                  <p className="text-[11px] text-slate-400 tabular">
+                    Mat. {a.matricula}
+                    {a.viaPin && (
+                      <span className="text-primary font-semibold">
+                        {" "}
+                        · via PIN
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  key={a.status}
+                  onClick={() => alternarStatus(a.id, a.status)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3.5 h-9 rounded-full text-xs font-bold transition-transform hover:scale-105 active:scale-95 animate-pop",
+                    v.cls,
+                  )}
+                >
+                  <span>{v.icone}</span> {v.label}
+                </button>
               </div>
-
-              <button
-                onClick={() => alternarStatus(aluno.id, aluno.status)}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${VISUAL[aluno.status].cls}`}
-              >
-                {VISUAL[aluno.status].label}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 pl-4 pr-2 h-12 rounded-full bg-ink text-white text-sm font-bold shadow-2xl animate-pop">
+          {toast}
+          <button
+            onClick={() => setToast(null)}
+            aria-label="Fechar"
+            className="p-1.5 rounded-full hover:bg-white/10"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Modal PIN */}
       <Modal
         isOpen={isModalPinOpen}
         onClose={() => setIsModalPinOpen(false)}
-        title="Chamada Inteligente ao Vivo"
+        title="Chamada ao vivo"
       >
-        <div className="text-center py-6 space-y-6">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Digite este código no seu Portal do Aluno
+        <div className="text-center py-4 space-y-6">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+            Digite no Portal do Aluno
           </p>
 
-          <div className="inline-block bg-primary/10 border-2 border-primary px-10 py-6 rounded-3xl shadow-flat">
-            <span className="text-6xl font-black text-primary tracking-widest">
-              {pin ?? "-".repeat(REGRAS.digitosPin)}
-            </span>
+          <div className="flex justify-center gap-3">
+            {digitos.map((d, i) => (
+              <div
+                key={`${pin}-${i}`}
+                style={{ animationDelay: `${i * 90}ms` }}
+                className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-brand text-white shadow-glow flex items-center justify-center text-5xl sm:text-6xl font-black tabular animate-pop"
+              >
+                {d}
+              </div>
+            ))}
           </div>
 
-          <div className="p-3 bg-primary-soft rounded-2xl max-w-xs mx-auto border border-primary/10">
-            <p className="text-xs text-slate-500">Expira em</p>
-            <p className="text-2xl font-black text-amber-600">
-              {chamadaAtiva ? formatarTempo(tempoRestante) : "Expirado"}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {presentesIds.length} confirmação(ões) via PIN
-            </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              className={cn(
+                "p-3 rounded-2xl",
+                urgente ? "bg-rose-50 animate-pulse" : "bg-amber-50",
+              )}
+            >
+              <p className="text-[11px] font-medium text-slate-500">
+                Expira em
+              </p>
+              <p
+                className={cn(
+                  "text-2xl font-black tabular",
+                  urgente ? "text-rose-600" : "text-amber-600",
+                )}
+              >
+                {chamadaAtiva ? formatarTempo(tempoRestante) : "Expirado"}
+              </p>
+            </div>
+            <div className="p-3 rounded-2xl bg-emerald-50">
+              <p className="text-[11px] font-medium text-slate-500">Via PIN</p>
+              <p
+                key={presentesIds.length}
+                className="text-2xl font-black text-emerald-600 tabular animate-pop"
+              >
+                {presentesIds.length}
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3">
             <Button className="w-full" onClick={() => setIsModalPinOpen(false)}>
-              Voltar para a Lista
+              Voltar para a lista
             </Button>
             {chamadaAtiva && (
               <Button
@@ -286,7 +405,7 @@ export const LancamentoFrequencia: React.FC = () => {
                 variant="outline"
                 onClick={handleEncerrar}
               >
-                Encerrar Chamada
+                Encerrar chamada
               </Button>
             )}
           </div>

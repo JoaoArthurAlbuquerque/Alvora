@@ -2,25 +2,170 @@
 
 @theme static {
   --font-sans:
-    "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --color-primary: #5170ff;
   --color-primary-hover: #3b59ff;
-  --color-primary-soft: #f5f7ff;
-  --color-primary-tint-5: rgba(81, 112, 255, 0.05);
-  --color-primary-tint-10: rgba(81, 112, 255, 0.1);
-  --color-primary-tint-15: rgba(81, 112, 255, 0.15);
+  --color-primary-deep: #2a3fd6;
+  --color-primary-soft: #eef2ff;
   --color-ink: #0f172a;
 
-  --shadow-flat: 0px 10px 30px rgba(81, 112, 255, 0.08);
-  --shadow-flat-2: 0px 10px 30px rgba(81, 112, 255, 0.08);
-  --shadow-flat-sm: 0px 4px 16px rgba(81, 112, 255, 0.05);
+  --shadow-flat: 0 8px 30px -12px rgba(81, 112, 255, 0.18);
+  --shadow-flat-2: 0 12px 40px -12px rgba(81, 112, 255, 0.28);
+  --shadow-flat-sm: 0 4px 14px -6px rgba(81, 112, 255, 0.25);
+  --shadow-glow: 0 10px 25px -8px rgba(81, 112, 255, 0.55);
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.3s ease-out both;
+  --animate-scale-in: scale-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-in: slide-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-grow: grow 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shake: shake 0.4s ease-in-out;
+  --animate-pop: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20%,
+    60% {
+      transform: translateX(-8px);
+    }
+    40%,
+    80% {
+      transform: translateX(8px);
+    }
+  }
+  @keyframes pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(3deg);
+    }
+  }
+  @keyframes grow {
+    from {
+      width: 0;
+    }
+  }
 }
 
 @layer base {
   body {
     font-family: var(--font-sans);
-    background-color: var(--color-primary-soft);
     color: var(--color-ink);
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #dfe6ff 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, #e8e4ff 0%, transparent 60%),
+      #f4f6ff;
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Filhos entram em cascata */
+  .stagger > * {
+    animation: var(--animate-fade-up);
+  }
+  .stagger > *:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: 0.08s;
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: 0.14s;
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: 0.2s;
+  }
+  .stagger > *:nth-child(5) {
+    animation-delay: 0.26s;
+  }
+  .stagger > *:nth-child(6) {
+    animation-delay: 0.32s;
+  }
+  .stagger > *:nth-child(n + 7) {
+    animation-delay: 0.38s;
+  }
+
+  .bg-brand {
+    background-image: linear-gradient(
+      135deg,
+      #5170ff 0%,
+      #3b59ff 55%,
+      #6d5bff 100%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }

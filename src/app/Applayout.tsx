@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Menu,
   X,
@@ -7,6 +7,8 @@ import {
   Sparkles,
   CircleHelp,
   CalendarDays,
+  Search,
+  ChevronRight,
 } from "lucide-react";
 import { useAuthStore } from "../core/auth/useAuthStore";
 import { cn } from "../core/lib/utils";
@@ -15,19 +17,15 @@ import { AssistentePedagogicoModal } from "../modules/assistente-pedagogico/Assi
 import { CentralDuvidasDrawer } from "../modules/central-duvidas/CentralDuvidasDrawer";
 import { CalendarioModal } from "../modules/calendario/CalendarioModal";
 
-const titulos = {
-  aluno: "Portal do Estudante",
-  professor: "Ambiente do Professor",
-  gestor: "Painel de Gestão Educacional",
-} as const;
-
-const botaoAcao =
-  "w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all";
+const itemBase =
+  "group relative w-full flex items-center gap-3 px-4 h-11 rounded-xl text-sm font-medium transition-all duration-200";
+const itemInativo =
+  "text-slate-500 hover:text-primary hover:bg-primary/5 hover:translate-x-1";
 
 export const AppLayout: React.FC = () => {
   const { usuario, logout } = useAuthStore();
   const navigate = useNavigate();
-
+  const { pathname } = useLocation();
   const [menuAberto, setMenuAberto] = useState(false);
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isDuvidasOpen, setIsDuvidasOpen] = useState(false);
@@ -35,130 +33,141 @@ export const AppLayout: React.FC = () => {
 
   if (!usuario) return null;
   const papel = usuario.papel;
+  const nav = navPorPapel[papel];
+  const paginaAtual =
+    [...nav]
+      .sort((a, b) => b.path.length - a.path.length)
+      .find((i) => pathname.startsWith(i.path))?.label ??
+    (pathname.endsWith("/perfil") ? "Meu Perfil" : "");
 
-  const fecharMenu = () => setMenuAberto(false);
-
+  const fechar = () => setMenuAberto(false);
+  const abrir = (setter: (v: boolean) => void) => () => {
+    fechar();
+    setter(true);
+  };
   const sair = () => {
     logout();
     navigate("/login", { replace: true });
   };
+  const inicial = usuario.nome
+    .replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "")
+    .charAt(0);
 
-  const irPara = (path: string) => {
-    fecharMenu();
-    navigate(path);
-  };
+  const ferramentas = [
+    { label: "Assistente IA", icone: Sparkles, onClick: abrir(setIsAiOpen) },
+    {
+      label: "Calendário",
+      icone: CalendarDays,
+      onClick: abrir(setIsCalendarOpen),
+    },
+    {
+      label: "Central de Dúvidas",
+      icone: CircleHelp,
+      onClick: abrir(setIsDuvidasOpen),
+    },
+  ];
 
-  // Fecha o drawer antes de abrir modais/drawers
-  const abrir = (setter: (v: boolean) => void) => () => {
-    fecharMenu();
-    setter(true);
-  };
-
-  const conteudoSidebar = (
+  const sidebar = (
     <>
-      <div className="flex items-center justify-between px-2 py-3 mb-4">
+      <div className="flex items-center justify-between h-16 px-3">
         <img src="/alvora_blue.svg" alt="Alvora" className="h-8 w-auto" />
         <button
-          onClick={fecharMenu}
-          className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-primary/10"
+          onClick={fechar}
+          className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-slate-100"
           aria-label="Fechar menu"
         >
           <X size={18} />
         </button>
       </div>
 
-      <nav className="space-y-1">
-        {navPorPapel[papel].map(({ label, path, icone: Icone }) => (
+      <nav className="mt-4 space-y-1 stagger">
+        {nav.map(({ label, path, icone: Icone }) => (
           <NavLink
             key={path}
             to={path}
             end={path === `/${papel}`}
-            onClick={fecharMenu}
+            onClick={fechar}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200",
-                isActive
-                  ? "bg-primary text-white shadow-flat-sm"
-                  : "text-slate-600 hover:bg-primary/10 hover:text-primary",
+                itemBase,
+                isActive ? "bg-brand text-white shadow-glow" : itemInativo,
               )
             }
           >
-            <Icone size={17} />
-            {label}
+            {({ isActive }) => (
+              <>
+                <Icone size={18} strokeWidth={isActive ? 2.4 : 2} />
+                <span className="flex-1">{label}</span>
+                {isActive && <ChevronRight size={15} className="opacity-80" />}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      <div className="mt-auto space-y-2 pt-4 border-t border-primary/10">
-        <p className="px-3 text-xs font-semibold text-primary uppercase tracking-wider mb-2">
-          Ações Rápidas
+      <div className="mt-8">
+        <p className="px-4 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
+          Ferramentas
         </p>
-        {acoesExtras[papel].map(({ label, path, icone: Icone }) => (
-          <button
-            key={label}
-            onClick={() => irPara(path)}
-            className={cn(
-              botaoAcao,
-              "bg-primary/5 text-slate-700 hover:bg-primary/10",
-            )}
-          >
-            <Icone size={15} className="text-primary" /> {label}
-          </button>
-        ))}
-        <button
-          onClick={abrir(setIsAiOpen)}
-          className={cn(
-            botaoAcao,
-            "bg-primary/10 text-primary hover:bg-primary/15",
-          )}
-        >
-          <Sparkles size={15} /> Assistente IA
-          <span className="ml-auto text-xs bg-white px-1.5 py-0.5 rounded-md shadow-2xs">
-            IA
-          </span>
-        </button>
-        <button
-          onClick={abrir(setIsDuvidasOpen)}
-          className={cn(
-            botaoAcao,
-            "bg-primary/5 text-slate-700 hover:bg-primary/10",
-          )}
-        >
-          <CircleHelp size={15} className="text-primary" /> Central de Dúvidas
-        </button>
-        <button
-          onClick={abrir(setIsCalendarOpen)}
-          className={cn(
-            botaoAcao,
-            "bg-primary/5 text-slate-700 hover:bg-primary/10",
-          )}
-        >
-          <CalendarDays size={15} className="text-primary" /> Calendário
-        </button>
+        <div className="space-y-1">
+          {acoesExtras[papel].map(({ label, path, icone: Icone }) => (
+            <button
+              key={label}
+              onClick={() => {
+                fechar();
+                navigate(path);
+              }}
+              className={cn(itemBase, itemInativo)}
+            >
+              <Icone size={18} /> {label}
+            </button>
+          ))}
+          {ferramentas.map(({ label, icone: Icone, onClick }) => (
+            <button
+              key={label}
+              onClick={onClick}
+              className={cn(itemBase, itemInativo)}
+            >
+              <Icone size={18} /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="pt-4 mt-4 border-t border-primary/10 flex items-center justify-between">
+      {/* Card promocional da IA */}
+      <button
+        onClick={abrir(setIsAiOpen)}
+        className="group mt-auto mb-3 relative overflow-hidden rounded-2xl bg-brand p-4 text-left text-white shadow-glow hover:-translate-y-0.5 transition-transform"
+      >
+        <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 group-hover:scale-125 transition-transform duration-500" />
+        <Sparkles size={20} className="relative animate-float" />
+        <p className="relative mt-2 text-sm font-bold">Precisa de ajuda?</p>
+        <p className="relative text-xs text-white/80">
+          Pergunte ao Assistente IA ✨
+        </p>
+      </button>
+
+      <div className="pt-3 border-t border-slate-100 flex items-center gap-1">
         <NavLink
           to={`/${papel}/perfil`}
-          onClick={fecharMenu}
-          className="flex items-center gap-2.5 overflow-hidden"
+          onClick={fechar}
+          className="flex-1 flex items-center gap-2.5 p-2 rounded-xl hover:bg-primary/5 min-w-0"
         >
-          <div className="w-9 h-9 rounded-full bg-primary/15 text-primary font-bold flex items-center justify-center text-sm shrink-0">
-            {usuario.nome.replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "").charAt(0)}
+          <div className="w-9 h-9 rounded-full bg-brand text-white text-sm font-bold flex items-center justify-center shrink-0 ring-4 ring-primary/10">
+            {inicial}
           </div>
-          <div className="truncate">
-            <p className="text-xs font-bold text-slate-900 truncate">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink truncate">
               {usuario.nome}
             </p>
-            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-              {rotuloPapel[papel]}
-            </span>
+            <p className="text-xs text-slate-400">{rotuloPapel[papel]}</p>
           </div>
         </NavLink>
         <button
           onClick={sair}
           title="Sair"
-          className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors"
+          aria-label="Sair"
+          className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
         >
           <LogOut size={17} />
         </button>
@@ -167,48 +176,74 @@ export const AppLayout: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex bg-primary-soft">
-      {/* Sidebar desktop */}
-      <aside className="hidden md:flex w-64 h-screen sticky top-0 bg-white border-r border-primary/10 flex-col p-5 shadow-flat shrink-0 z-20 overflow-y-auto">
-        {conteudoSidebar}
+    <div className="min-h-screen flex">
+      <aside className="hidden md:flex w-64 h-[calc(100vh-2rem)] sticky top-4 m-4 mr-0 bg-white/90 backdrop-blur rounded-3xl shadow-flat-2 flex-col px-3 pb-3 shrink-0 overflow-y-auto animate-slide-in">
+        {sidebar}
       </aside>
 
-      {/* Drawer mobile */}
       {menuAberto && (
         <div className="md:hidden fixed inset-0 z-40">
           <div
-            className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
-            onClick={fecharMenu}
+            className="absolute inset-0 bg-ink/30 backdrop-blur-sm animate-fade-in"
+            onClick={fechar}
           />
-          <aside className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-white flex flex-col p-5 shadow-flat overflow-y-auto">
-            {conteudoSidebar}
+          <aside className="absolute left-3 top-3 bottom-3 w-72 max-w-[85vw] bg-white rounded-3xl shadow-2xl flex flex-col px-3 pb-3 overflow-y-auto animate-slide-in">
+            {sidebar}
           </aside>
         </div>
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-primary/10 px-4 md:px-8 flex items-center justify-between gap-3 sticky top-0 z-10">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="sticky top-0 z-10 px-4 sm:px-6 lg:px-10 pt-4">
+          <div className="h-16 flex items-center gap-3 px-4 md:px-2 rounded-2xl bg-white/70 md:bg-transparent backdrop-blur md:backdrop-blur-none shadow-flat md:shadow-none">
             <button
               onClick={() => setMenuAberto(true)}
-              className="md:hidden p-2.5 -ml-2 rounded-xl text-primary hover:bg-primary/10"
+              className="md:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100"
               aria-label="Abrir menu"
             >
               <Menu size={20} />
             </button>
-            <h2 className="text-xs md:text-sm font-bold text-slate-700 uppercase tracking-wide truncate">
-              {titulos[papel]}
+            <h2
+              key={paginaAtual}
+              className="text-lg md:text-2xl font-extrabold text-ink truncate animate-fade-in"
+            >
+              {paginaAtual}
             </h2>
+            <div className="ml-auto hidden lg:flex items-center gap-2 h-10 w-72 px-4 rounded-full bg-white border border-primary/10 shadow-flat-sm focus-within:ring-4 focus-within:ring-primary/15 transition">
+              <Search size={16} className="text-slate-400" />
+              <input
+                placeholder="Buscar..."
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+              />
+            </div>
+            <NavLink
+              to={`/${papel}/perfil`}
+              className="hidden md:flex items-center gap-2 h-10 pl-1 pr-4 rounded-full bg-brand text-white text-sm font-semibold shadow-glow hover:-translate-y-0.5 transition-transform"
+            >
+              <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                {inicial}
+              </span>
+              {usuario.nome.split(" ")[0]}
+            </NavLink>
           </div>
-          <span className="shrink-0 text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
-            Ano Letivo 2026
-          </span>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+        <main
+          key={pathname}
+          className="flex-1 px-4 sm:px-6 lg:px-10 py-6 overflow-x-hidden animate-fade-up"
+        >
           <Outlet />
         </main>
       </div>
+
+      {/* Botão flutuante de dúvidas */}
+      <button
+        onClick={abrir(setIsDuvidasOpen)}
+        aria-label="Central de Dúvidas"
+        className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-brand text-white shadow-glow flex items-center justify-center hover:scale-110 hover:rotate-12 transition-transform duration-300"
+      >
+        <CircleHelp size={24} />
+      </button>
 
       <AssistentePedagogicoModal
         isOpen={isAiOpen}

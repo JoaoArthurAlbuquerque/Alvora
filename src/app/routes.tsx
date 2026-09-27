@@ -6,10 +6,15 @@ import {
 import { AppLayout } from "./Applayout";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { LoginPage } from "../modules/autenticacao/LoginPage";
+import { AlunoShell } from "../modules/aluno/AlunoShell";
 import { PortalAluno } from "../modules/aluno/PortalAluno";
+import { DisciplinasAluno } from "../modules/aluno/DisciplinasAluno";
+import { FrequenciaAluno } from "../modules/aluno/FrequenciaAluno";
+import { BoletimAluno } from "../modules/aluno/BoletimAluno";
+import { SecretariaAluno } from "../modules/aluno/SecretariaAluno";
 import { PortalProfessor } from "../modules/professor/PortalProfessor";
-import { PortalGestor } from "../modules/gestor/PortalGestor";
 import { LancamentoFrequencia } from "../modules/professor/LancamentoFrequencia";
+import { PortalGestor } from "../modules/gestor/PortalGestor";
 import { EmConstrucao } from "../core/ui/EmConstrucao";
 import { useAuthStore } from "../core/auth/useAuthStore";
 
@@ -34,15 +39,17 @@ const router = createBrowserRouter([
             path: "aluno",
             element: <ProtectedRoute papeis={["aluno"]} />,
             children: [
-              { index: true, element: <PortalAluno /> },
-              ...placeholder([
-                "disciplinas",
-                "frequencia",
-                "boletim",
-                "secretaria",
-                "calendario",
-                "perfil",
-              ]),
+              {
+                element: <AlunoShell />,
+                children: [
+                  { index: true, element: <PortalAluno /> },
+                  { path: "disciplinas", element: <DisciplinasAluno /> },
+                  { path: "frequencia", element: <FrequenciaAluno /> },
+                  { path: "boletim", element: <BoletimAluno /> },
+                  { path: "secretaria", element: <SecretariaAluno /> },
+                  ...placeholder(["calendario", "perfil"]),
+                ],
+              },
             ],
           },
           {

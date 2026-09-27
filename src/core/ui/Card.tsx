@@ -1,23 +1,28 @@
 import React from "react";
+import { cn } from "../lib/utils";
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   hoverable?: boolean;
+  padded?: boolean;
 }
 
 export const Card: React.FC<CardProps> = ({
   children,
-  className = "",
+  className,
   hoverable = false,
+  padded = true,
   ...props
-}) => {
-  return (
-    <div
-      className={`bg-white rounded-2xl p-6 shadow-flat border border-primary/10 transition-all duration-200 ${
-        hoverable ? "hover:-translate-y-0.5 hover:border-primary/25" : ""
-      } ${className}`}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
+}) => (
+  <div
+    className={cn(
+      "bg-white rounded-2xl border border-white shadow-flat transition-all duration-300",
+      padded && "p-5 sm:p-6",
+      hoverable &&
+        "group hover:-translate-y-1 hover:shadow-flat-2 hover:border-primary/15",
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+);
