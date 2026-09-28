@@ -7,12 +7,35 @@ interface AuthState {
   usuario: Usuario | null;
   login: (email: string, senha: string) => Promise<string | null>;
   logout: () => Promise<void>;
+  recarregarPerfil: () => Promise<void>;
+  validarSessao: () => Promise<boolean>;
+}
+
+async function buscarPerfil(id: string, email: string): Promise<Usuario | null> {
+  const { data: perfil, error } = await supabase
+    .from("profiles")
+    .select("id, nome, sobrenome, papel, matricula")
+    .eq("id", id)
+    .single();
+  if (error || !perfil) return null;
+
+  return {
+    id: perfil.id,
+    nome: [perfil.nome, perfil.sobrenome].filter(Boolean).join(" "),
+    sobrenome: perfil.sobrenome ?? "",
+    matricula: perfil.matricula ?? "",
+    email,
+    papel: perfil.papel,
+    turmaOuCargo: "",
+    turmasIds: [],
+  };
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       usuario: null,
+
       login: async (email, senha) => {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -20,30 +43,48 @@ export const useAuthStore = create<AuthState>()(
         });
         if (error) return error.message;
 
-        const { data: perfil, error: e2 } = await supabase
-          .from("profiles")
-          .select("id, nome, papel")
-          .eq("id", data.user.id)
-          .single();
-        if (e2 || !perfil) return "Perfil não encontrado";
+        const usuario = await buscarPerfil(data.user.id, email);
+        if (!usuario) {
+          await supabase.auth.signOut();
+          return "Perfil não encontrado";
+        }
 
-        set({
-          usuario: {
-            id: perfil.id,
-            nome: perfil.nome,
-            email,
-            papel: perfil.papel,
-            turmaOuCargo: "",
-            turmasIds: [],
-          },
-        });
+        set({ usuario });
         return null;
       },
+
       logout: async () => {
         await supabase.auth.signOut();
         set({ usuario: null });
       },
+
+      // Atualiza a sessão salva sem precisar sair e entrar de novo
+      recarregarPerfil: async () => {
+        const atual = get().usuario;
+        if (!atual) return;
+        const usuario = await buscarPerfil(atual.id, atual.email);
+        if (usuario) set({ usuario });
+      },
+
+      // Confere se o token do Supabase ainda vale para o usuário salvo
+      validarSessao: async () => {
+        const { data } = await supabase.auth.getSession();
+        const atual = get().usuario;
+        if (!data.session || data.session.user.id !== atual?.id) {
+          set({ usuario: null });
+          return false;
+        }
+        return true;
+      },
     }),
-    { name: "alvora-sessao" },
+    {
+      name: "alvora-sessao",
+      partialize: (s) => ({ usuario: s.usuario }),
+    },
   ),
 );
+
+// Sessão encerrada fora do app (outra aba, token expirado) → limpa o usuário
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") useAuthStore.setState({ usuario: null });
+});

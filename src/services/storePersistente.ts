@@ -14,19 +14,19 @@ export function criarStorePersistente<T>(key: string, vazio: T) {
 
   let cache = ler();
 
-  const subscribe = (cb: () => void) => {
-    const onStorage = (e: StorageEvent) => {
+  // Sempre ouvindo outras abas, mesmo sem nenhum componente inscrito
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", (e) => {
       if (e.key === key) {
         cache = ler();
-        cb();
+        window.dispatchEvent(new Event(EVT));
       }
-    };
-    window.addEventListener("storage", onStorage);
+    });
+  }
+
+  const subscribe = (cb: () => void) => {
     window.addEventListener(EVT, cb);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(EVT, cb);
-    };
+    return () => window.removeEventListener(EVT, cb);
   };
 
   return {

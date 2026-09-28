@@ -658,7 +658,13 @@ declare module "_.css";
 FILE: src/app/Applayout.tsx
 ================================================
 import React, { useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+NavLink,
+Navigate,
+Outlet,
+useLocation,
+useNavigate,
+} from "react-router-dom";
 import {
 Menu,
 X,
@@ -690,9 +696,25 @@ const [isAiOpen, setIsAiOpen] = useState(false);
 const [isDuvidasOpen, setIsDuvidasOpen] = useState(false);
 const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-if (!usuario) return null;
+if (!usuario) return <Navigate to="/login" replace />;
+
 const papel = usuario.papel;
 const nav = navPorPapel[papel];
+
+// Papel inválido/ausente no perfil → volta pro login
+if (!nav) {
+logout();
+return <Navigate to="/login" replace />;
+}
+
+const nome =
+usuario.nome?.trim() || usuario.email?.split("@")[0] || "Usuário";
+const primeiroNome = nome.split(" ")[0];
+const inicial = nome
+.replace(/^(Prof\.|Profa\.|Dra?\.)\s\*/, "")
+.charAt(0)
+.toUpperCase();
+
 const paginaAtual =
 [...nav]
 .sort((a, b) => b.path.length - a.path.length)
@@ -704,13 +726,10 @@ const abrir = (setter: (v: boolean) => void) => () => {
 fechar();
 setter(true);
 };
-const sair = () => {
-logout();
+const sair = async () => {
+await logout();
 navigate("/login", { replace: true });
 };
-const inicial = usuario.nome
-.replace(/^(Prof\.|Profa\.|Dra?\.)\s\*/, "")
-.charAt(0);
 
 const ferramentas = [
 { label: "Assistente IA", icone: Sparkles, onClick: abrir(setIsAiOpen) },
@@ -769,7 +788,7 @@ const sidebar = (
           Ferramentas
         </p>
         <div className="space-y-1">
-          {acoesExtras[papel].map(({ label, path, icone: Icone }) => (
+          {(acoesExtras[papel] ?? []).map(({ label, path, icone: Icone }) => (
             <button
               key={label}
               onClick={() => {
@@ -816,9 +835,7 @@ const sidebar = (
             {inicial}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink truncate">
-              {usuario.nome}
-            </p>
+            <p className="text-sm font-semibold text-ink truncate">{nome}</p>
             <p className="text-xs text-slate-400">{rotuloPapel[papel]}</p>
           </div>
         </NavLink>
@@ -883,7 +900,7 @@ return (
               <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                 {inicial}
               </span>
-              {usuario.nome.split(" ")[0]}
+              {primeiroNome}
             </NavLink>
           </div>
         </header>
@@ -933,6 +950,7 @@ CalendarCheck,
 GraduationCap,
 FileText,
 Users,
+UserPlus,
 BellRing,
 ChartColumn,
 Settings,
@@ -966,6 +984,7 @@ gestor: [
 { label: "Indicadores", path: "/gestor", icone: ChartColumn },
 { label: "Alunos & Turmas", path: "/gestor/turmas", icone: Users },
 { label: "Professores", path: "/gestor/professores", icone: GraduationCap },
+{ label: "Usuários", path: "/gestor/usuarios", icone: UserPlus },
 { label: "Regras", path: "/gestor/regras", icone: Settings },
 { label: "Auditoria", path: "/gestor/auditoria", icone: ScrollText },
 ],
@@ -1034,7 +1053,6 @@ import { PortalProfessor } from "../modules/professor/PortalProfessor";
 import { LancamentoFrequencia } from "../modules/professor/LancamentoFrequencia";
 import { PortalGestor } from "../modules/gestor/PortalGestor";
 import { AdminUsuarios } from "../modules/gestor/AdminUsuarios";
-import CriarUsuario from "../modules/gestor/CriarUsuario"; // 👈 novo
 import { EmConstrucao } from "../core/ui/EmConstrucao";
 import { useAuthStore } from "../core/auth/useAuthStore";
 
@@ -1093,7 +1111,6 @@ element: <ProtectedRoute papeis={["gestor"]} />,
 children: [
 { index: true, element: <PortalGestor /> },
 { path: "usuarios", element: <AdminUsuarios /> },
-{ path: "criar-usuario", element: <CriarUsuario /> }, // 👈 novo
 ...placeholder([
 "turmas",
 "professores",
@@ -1314,52 +1331,52 @@ FILE: src/core/auth/useAuthStore.ts
 ================================================
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { PapelUsuario, Usuario } from "../../types";
+import { supabase } from "@/lib/supabase";
+import type { Usuario } from "../../types";
 
 interface AuthState {
-autenticado: boolean;
 usuario: Usuario | null;
-login: (papel: PapelUsuario) => void;
-logout: () => void;
+login: (email: string, senha: string) => Promise<string | null>;
+logout: () => Promise<void>;
 }
-
-const mockUsuarios: Record<PapelUsuario, Usuario> = {
-aluno: {
-id: "aluno-1",
-nome: "João Arthur Albuquerque",
-email: "joao.albuquerque@alvora.edu.br",
-papel: "aluno",
-turmaOuCargo: "Sistemas de Informação - 4º Período",
-turmasIds: ["turma-1", "turma-2", "turma-3"],
-},
-professor: {
-id: "prof-1",
-nome: "Prof. Carlos Eduardo",
-email: "carlos.eduardo@alvora.edu.br",
-papel: "professor",
-turmaOuCargo: "Docente de Algoritmos e Estrutura de Dados",
-turmasIds: ["turma-1"],
-},
-gestor: {
-id: "gestor-1",
-nome: "Dra. Maria Helena",
-email: "maria.helena@alvora.edu.br",
-papel: "gestor",
-turmaOuCargo: "Coordenação Pedagógica Geral",
-turmasIds: [],
-},
-};
 
 export const useAuthStore = create<AuthState>()(
 persist(
 (set) => ({
-autenticado: false,
 usuario: null,
-login: (papel) =>
-set({ autenticado: true, usuario: mockUsuarios[papel] }),
-logout: () => set({ autenticado: false, usuario: null }),
-}),
-{ name: "alvora-sessao" },
+login: async (email, senha) => {
+const { data, error } = await supabase.auth.signInWithPassword({
+email,
+password: senha,
+});
+if (error) return error.message;
+
+        const { data: perfil, error: e2 } = await supabase
+          .from("profiles")
+          .select("id, nome, papel")
+          .eq("id", data.user.id)
+          .single();
+        if (e2 || !perfil) return "Perfil não encontrado";
+
+        set({
+          usuario: {
+            id: perfil.id,
+            nome: perfil.nome,
+            email,
+            papel: perfil.papel,
+            turmaOuCargo: "",
+            turmasIds: [],
+          },
+        });
+        return null;
+      },
+      logout: async () => {
+        await supabase.auth.signOut();
+        set({ usuario: null });
+      },
+    }),
+    { name: "alvora-sessao" },
+
 ),
 );
 
@@ -3591,7 +3608,7 @@ FILE: src/modules/autenticacao/LoginPage.tsx
 ================================================
 // src/modules/autenticacao/LoginPage.tsx
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import {
 GraduationCap,
 BookOpen,
@@ -3605,6 +3622,7 @@ Loader2,
 Sparkles,
 TrendingUp,
 CheckCircle2,
+AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "../../core/auth/useAuthStore";
 import { Button } from "../../core/ui/Button";
@@ -3618,39 +3636,63 @@ const ROLES: { id: Role; label: string; icone: typeof GraduationCap }[] = [
 { id: "gestor", label: "Gestor", icone: BarChart3 },
 ];
 
+const ERROS: Record<string, string> = {
+"Invalid login credentials": "E-mail ou senha incorretos.",
+"Email not confirmed": "Confirme seu e-mail antes de entrar.",
+};
+
 const inputCls =
 "w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-ink placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition";
 
 export const LoginPage: React.FC = () => {
 const [role, setRole] = useState<Role>("aluno");
-const [email, setEmail] = useState("aluno@alvora.edu.br");
+const [email, setEmail] = useState("");
 const [senha, setSenha] = useState("");
 const [ver, setVer] = useState(false);
 const [carregando, setCarregando] = useState(false);
-const login = useAuthStore((s) => s.login);
+const [erro, setErro] = useState<string | null>(null);
+const { usuario, login, logout } = useAuthStore();
 const navigate = useNavigate();
+
+if (usuario) return <Navigate to={`/${usuario.papel}`} replace />;
 
 const idx = ROLES.findIndex((r) => r.id === role);
 
 const trocarRole = (r: Role) => {
 setRole(r);
-setEmail(`${r}@alvora.edu.br`);
+setErro(null);
 };
 
-const entrar = (e: React.SyntheticEvent) => {
+const entrar = async (e: React.SyntheticEvent) => {
 e.preventDefault();
-setCarregando(true);
-setTimeout(() => {
-login(role);
-navigate(`/${role}`);
-}, 600);
+if (!email || !senha) return setErro("Preencha e-mail e senha.");
+
+    setCarregando(true);
+    setErro(null);
+
+    const msg = await login(email.trim(), senha);
+    if (msg) {
+      setCarregando(false);
+      return setErro(ERROS[msg] ?? msg);
+    }
+
+    const papel = useAuthStore.getState().usuario?.papel;
+    if (papel !== role) {
+      await logout();
+      setCarregando(false);
+      return setErro(
+        `Esta conta não é de ${ROLES[idx].label}. Selecione o perfil correto.`,
+      );
+    }
+
+    navigate(`/${papel}`, { replace: true });
+
 };
 
 return (
 <main className="grid min-h-screen w-full lg:grid-cols-2 bg-white">
 {/_ ESQUERDA _/}
 <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-brand p-12 text-white">
-{/_ bolhas de luz _/}
 <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/10 blur-3xl animate-float" />
 <div className="pointer-events-none absolute bottom-0 right-0 w-80 h-80 rounded-full bg-fuchsia-400/20 blur-3xl animate-float [animation-delay:1.5s]" />
 <div
@@ -3678,7 +3720,6 @@ style={{
             </h2>
           </div>
 
-          {/* cards flutuantes */}
           <div className="flex gap-4 stagger">
             <div className="p-4 rounded-2xl bg-white/15 backdrop-blur border border-white/20 animate-float">
               <TrendingUp size={18} className="mb-2" />
@@ -3766,6 +3807,7 @@ style={{
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nome@escola.edu.br"
@@ -3798,6 +3840,8 @@ style={{
                 <input
                   id="senha"
                   type={ver ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   placeholder="••••••••"
@@ -3817,10 +3861,22 @@ style={{
             <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
               <input
                 type="checkbox"
+                defaultChecked
                 className="h-4 w-4 rounded accent-primary"
               />
               Manter conectado
             </label>
+
+            {erro && (
+              <p
+                key={erro}
+                role="alert"
+                className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 rounded-xl px-3.5 py-2.5 animate-shake"
+              >
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                {erro}
+              </p>
+            )}
 
             <Button
               type="submit"
@@ -4360,33 +4416,46 @@ Fechar
 ================================================
 FILE: src/modules/gestor/AdminUsuarios.tsx
 ================================================
-import { useState } from "react";
-import type { ChangeEvent, FormEvent, CSSProperties } from "react";
+import React, { useState } from "react";
+import { UserPlus, CheckCircle2, XCircle } from "lucide-react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import { Card } from "../../core/ui/Card";
+import { Button } from "../../core/ui/Button";
+import { IconBubble } from "../../core/ui/IconBubble";
+import { cn } from "../../core/lib/utils";
 
 type Papel = "aluno" | "professor" | "gestor";
-type Form = { email: string; senha: string; papel: Papel };
+type Form = { nome: string; email: string; senha: string; papel: Papel };
 type Msg = { tipo: "ok" | "erro"; texto: string } | null;
 
-const FORM_INICIAL: Form = { email: "", senha: "", papel: "aluno" };
+const FORM_INICIAL: Form = { nome: "", email: "", senha: "", papel: "aluno" };
 
-export function AdminUsuarios() {
+const PAPEIS: { id: Papel; label: string; emoji: string }[] = [
+{ id: "aluno", label: "Aluno", emoji: "🎒" },
+{ id: "professor", label: "Professor", emoji: "📚" },
+{ id: "gestor", label: "Gestor", emoji: "👑" },
+];
+
+const inputCls =
+"mt-1.5 w-full text-sm px-4 h-11 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition";
+
+export const AdminUsuarios: React.FC = () => {
 const [form, setForm] = useState<Form>(FORM_INICIAL);
 const [enviando, setEnviando] = useState(false);
 const [msg, setMsg] = useState<Msg>(null);
 
-const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-setForm({ ...form, [e.target.name]: e.target.value } as Form);
+const set = <K extends keyof Form>(campo: K, valor: Form[K]) =>
+setForm((f) => ({ ...f, [campo]: valor }));
 
-const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+const enviar = async (e: React.FormEvent) => {
 e.preventDefault();
 setMsg(null);
 
-    if (form.senha.length < 6) {
+    if (!form.nome.trim() || !form.email.trim() || form.senha.length < 6) {
       setMsg({
         tipo: "erro",
-        texto: "A senha precisa ter no mínimo 6 caracteres.",
+        texto: "Preencha nome, e-mail e senha (mín. 6).",
       });
       return;
     }
@@ -4394,6 +4463,7 @@ setMsg(null);
     setEnviando(true);
     const { data, error } = await supabase.functions.invoke("criar-usuario", {
       body: {
+        nome: form.nome.trim(),
         email: form.email.trim().toLowerCase(),
         senha: form.senha,
         papel: form.papel,
@@ -4403,7 +4473,6 @@ setMsg(null);
 
     if (error || data?.erro) {
       let texto: string = data?.erro || error?.message || "Erro desconhecido";
-
       if (error instanceof FunctionsHttpError) {
         try {
           const corpo = await error.context.json();
@@ -4412,101 +4481,112 @@ setMsg(null);
           /* resposta sem JSON */
         }
       }
-
       setMsg({ tipo: "erro", texto });
       return;
     }
 
-    setMsg({
-      tipo: "ok",
-      texto: `✅ ${form.papel} ${form.email} criado com sucesso!`,
-    });
+    setMsg({ tipo: "ok", texto: `${form.nome.trim()} entrou na Alvora! 🌅` });
     setForm(FORM_INICIAL);
 
 };
 
 return (
-<div style={s.container}>
-<h2>👑 Cadastrar usuário</h2>
+<Card className="space-y-5 max-w-2xl">
+<div className="flex items-center gap-4">
+<IconBubble icone={UserPlus} cor="primary" />
+<div>
+<h3 className="text-lg font-extrabold text-ink">Cadastrar usuário</h3>
+<p className="text-xs text-slate-400">
+O acesso é liberado na hora, sem confirmação por e-mail.
+</p>
+</div>
+</div>
 
-      <form onSubmit={handleSubmit} style={s.form}>
-        <label htmlFor="email">E-mail</label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          required
-          value={form.email}
-          onChange={handleChange}
-          style={s.input}
-        />
+      <form onSubmit={enviar} className="space-y-4">
+        <label className="block text-sm font-semibold text-ink">
+          Nome completo
+          <input
+            value={form.nome}
+            onChange={(e) => set("nome", e.target.value)}
+            placeholder="Ex.: Pedro Albuquerque"
+            className={inputCls}
+          />
+        </label>
 
-        <label htmlFor="senha">Senha</label>
-        <input
-          id="senha"
-          name="senha"
-          type="password"
-          required
-          value={form.senha}
-          onChange={handleChange}
-          style={s.input}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label className="block text-sm font-semibold text-ink">
+            E-mail
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => set("email", e.target.value)}
+              placeholder="pedro@escola.com"
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-sm font-semibold text-ink">
+            Senha
+            <input
+              type="password"
+              value={form.senha}
+              onChange={(e) => set("senha", e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className={inputCls}
+            />
+          </label>
+        </div>
 
-        <label htmlFor="papel">Papel</label>
-        <select
-          id="papel"
-          name="papel"
-          value={form.papel}
-          onChange={handleChange}
-          style={s.input}
+        <div>
+          <p className="text-sm font-semibold text-ink mb-1.5">Papel</p>
+          <div className="grid grid-cols-3 gap-2">
+            {PAPEIS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => set("papel", p.id)}
+                className={cn(
+                  "h-11 rounded-xl text-xs font-bold transition-all",
+                  form.papel === p.id
+                    ? "bg-brand text-white shadow-glow"
+                    : "bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary",
+                )}
+              >
+                {p.emoji} {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={enviando}
+          icon={<UserPlus size={15} />}
         >
-          <option value="aluno">Aluno</option>
-          <option value="professor">Professor</option>
-          <option value="gestor">Gestor</option>
-        </select>
-
-        <button type="submit" disabled={enviando} style={s.button}>
           {enviando ? "Criando..." : "Criar usuário"}
-        </button>
+        </Button>
       </form>
 
       {msg && (
         <p
-          style={{
-            ...s.msg,
-            background: msg.tipo === "ok" ? "#d1fae5" : "#fee2e2",
-          }}
+          className={cn(
+            "flex items-center gap-2 text-sm font-bold p-4 rounded-xl animate-pop",
+            msg.tipo === "ok"
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-rose-50 text-rose-600",
+          )}
         >
+          {msg.tipo === "ok" ? (
+            <CheckCircle2 size={16} />
+          ) : (
+            <XCircle size={16} />
+          )}
           {msg.texto}
         </p>
       )}
-    </div>
+    </Card>
 
 );
-}
-
-const s: Record<string, CSSProperties> = {
-container: {
-maxWidth: 420,
-margin: "40px auto",
-padding: 24,
-borderRadius: 12,
-boxShadow: "0 2px 12px rgba(0,0,0,.1)",
-fontFamily: "sans-serif",
-},
-form: { display: "flex", flexDirection: "column", gap: 8 },
-input: { padding: 10, borderRadius: 8, border: "1px solid #ccc" },
-button: {
-marginTop: 12,
-padding: 12,
-borderRadius: 8,
-border: "none",
-background: "#4f46e5",
-color: "#fff",
-fontWeight: "bold",
-cursor: "pointer",
-},
-msg: { marginTop: 16, padding: 12, borderRadius: 8 },
 };
 
 ================================================
@@ -4577,83 +4657,6 @@ nome
 .slice(0, 2)
 .join("")
 .toUpperCase();
-
-================================================
-FILE: src/modules/gestor/CriarUsuario.tsx
-================================================
-import { useState } from "react";
-import { supabase } from "../../lib/supabase";
-
-export default function CriarUsuario() {
-const [nome, setNome] = useState("");
-const [email, setEmail] = useState("");
-const [senha, setSenha] = useState("");
-const [role, setRole] = useState("aluno");
-const [mensagem, setMensagem] = useState("");
-const [carregando, setCarregando] = useState(false);
-
-async function criar() {
-setCarregando(true);
-setMensagem("");
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      setMensagem("❌ Faça login como gestor primeiro.");
-      setCarregando(false);
-      return;
-    }
-
-    const { error } = await supabase.functions.invoke("criar-usuario", {
-      body: { nome, email, senha, role },
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-
-    if (error) {
-      const detalhe = await error.context?.json?.().catch(() => null);
-      setMensagem(`❌ Erro: ${detalhe?.error ?? error.message}`);
-    } else {
-      setMensagem("✅ Usuário criado com sucesso!");
-      setNome("");
-      setEmail("");
-      setSenha("");
-    }
-    setCarregando(false);
-
-}
-
-return (
-<div>
-<h3>Criar usuário</h3>
-<input
-placeholder="Nome"
-value={nome}
-onChange={(e) => setNome(e.target.value)}
-/>
-<input
-placeholder="E-mail"
-value={email}
-onChange={(e) => setEmail(e.target.value)}
-/>
-<input
-type="password"
-placeholder="Senha"
-value={senha}
-onChange={(e) => setSenha(e.target.value)}
-/>
-<select value={role} onChange={(e) => setRole(e.target.value)}>
-<option value="aluno">Aluno</option>
-<option value="professor">Professor</option>
-<option value="gestor">Gestor</option>
-</select>
-<button onClick={criar} disabled={carregando}>
-{carregando ? "Criando..." : "Criar"}
-</button>
-{mensagem && <p>{mensagem}</p>}
-</div>
-);
-}
 
 ================================================
 FILE: src/modules/gestor/JustificativasGestor.tsx
@@ -4942,6 +4945,7 @@ BellOff,
 FileClock,
 Radar,
 FileCheck2,
+UserPlus,
 } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { PageHeader } from "../../core/ui/PageHeader";
@@ -4953,8 +4957,9 @@ import { cn } from "../../core/lib/utils";
 import { FREQ_MINIMA, pad } from "./constantes";
 import { RadarGestor } from "./RadarGestor";
 import { JustificativasGestor } from "./JustificativasGestor";
+import { AdminUsuarios } from "./AdminUsuarios";
 
-type Aba = "radar" | "justificativas";
+type Aba = "radar" | "justificativas" | "usuarios";
 
 export const PortalGestor: React.FC = () => {
 const alertas = useAlertas();
@@ -5004,19 +5009,15 @@ cor: justPend ? "amber" : "emerald",
 },
 ] as const;
 
-const abas = [
+const abas: { id: Aba; label: string; icone: typeof Radar; qtd: number }[] = [
+{ id: "radar", label: "Radar de risco", icone: Radar, qtd: alertas.length },
 {
-id: "radar" as const,
-label: "Radar de risco",
-icone: Radar,
-qtd: alertas.length,
-},
-{
-id: "justificativas" as const,
+id: "justificativas",
 label: "Justificativas",
 icone: FileCheck2,
 qtd: justPend,
 },
+{ id: "usuarios", label: "Usuários", icone: UserPlus, qtd: 0 },
 ];
 
 return (
@@ -5069,7 +5070,9 @@ return (
       </nav>
 
       <div key={aba} className="animate-fade-up">
-        {aba === "radar" ? <RadarGestor /> : <JustificativasGestor />}
+        {aba === "radar" && <RadarGestor />}
+        {aba === "justificativas" && <JustificativasGestor />}
+        {aba === "usuarios" && <AdminUsuarios />}
       </div>
     </div>
 

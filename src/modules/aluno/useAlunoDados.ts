@@ -1,37 +1,38 @@
 import { useMemo } from "react";
+import { useAuthStore } from "../../core/auth/useAuthStore";
 import { alunoLogadoMock } from "../../mocks/data";
-import { useRegistros, aplicarRegistros } from "../../services/diarioStore";
 import {
   useJustificativas,
   aplicarAbonos,
 } from "../../services/justificativaStore";
+import type { Aluno } from "../../types";
 
-/** Aluno com frequência = mock + diário + abonos aprovados */
+/** Identidade vem do Supabase; notas e frequência seguem mock por enquanto. */
 export function useAlunoDados() {
-  const registros = useRegistros();
+  const usuario = useAuthStore((s) => s.usuario);
   const justificativas = useJustificativas();
 
-  const aluno = useMemo(
+  const aluno: Aluno = useMemo(
     () => ({
       ...alunoLogadoMock,
-      historicoFrequencia: aplicarAbonos(
-        aplicarRegistros(
-          alunoLogadoMock.historicoFrequencia,
-          registros,
-          alunoLogadoMock.id,
-        ),
-        justificativas,
-        alunoLogadoMock.id,
-      ),
+      id: usuario?.id ?? alunoLogadoMock.id,
+      nome: usuario?.nome || alunoLogadoMock.nome,
+      email: usuario?.email ?? alunoLogadoMock.email,
+      matricula: usuario?.matricula || "—",
     }),
-    [registros, justificativas],
+    [usuario],
   );
 
-  const historico = aluno.historicoFrequencia;
-  const frequenciaGlobal = historico.length
-    ? historico.reduce((acc, h) => acc + h.percentualFrequencia, 0) /
-      historico.length
-    : 100;
+  const historico = useMemo(
+    () => aplicarAbonos(aluno.historicoFrequencia, justificativas, aluno.id),
+    [aluno.historicoFrequencia, justificativas, aluno.id],
+  );
+
+  const frequenciaGlobal = useMemo(() => {
+    const total = historico.reduce((a, h) => a + h.presencas + h.faltas, 0);
+    const presencas = historico.reduce((a, h) => a + h.presencas, 0);
+    return total ? (presencas / total) * 100 : 100;
+  }, [historico]);
 
   return { aluno, historico, justificativas, frequenciaGlobal };
 }

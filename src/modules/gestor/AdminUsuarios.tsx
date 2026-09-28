@@ -1,170 +1,138 @@
 import React, { useState } from "react";
-import { UserPlus, CheckCircle2, XCircle } from "lucide-react";
-import { FunctionsHttpError } from "@supabase/supabase-js";
-import { supabase } from "../../lib/supabase";
-import { Card } from "../../core/ui/Card";
-import { Button } from "../../core/ui/Button";
-import { IconBubble } from "../../core/ui/IconBubble";
-import { cn } from "../../core/lib/utils";
-
-type Papel = "aluno" | "professor" | "gestor";
-type Form = { nome: string; email: string; senha: string; papel: Papel };
-type Msg = { tipo: "ok" | "erro"; texto: string } | null;
-
-const FORM_INICIAL: Form = { nome: "", email: "", senha: "", papel: "aluno" };
-
-const PAPEIS: { id: Papel; label: string; emoji: string }[] = [
-  { id: "aluno", label: "Aluno", emoji: "🎒" },
-  { id: "professor", label: "Professor", emoji: "📚" },
-  { id: "gestor", label: "Gestor", emoji: "👑" },
-];
+import { UserPlus, CheckCircle2, AlertCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { Card } from "@/core/ui/Card";
+import { Button } from "@/core/ui/Button";
+import { PageHeader } from "@/core/ui/PageHeader";
+import type { PapelUsuario } from "@/types";
 
 const inputCls =
-  "mt-1.5 w-full text-sm px-4 h-11 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition";
+  "w-full h-11 px-4 rounded-xl border border-primary/15 bg-white text-sm outline-none focus:ring-4 focus:ring-primary/15 transition";
+
+const vazio = {
+  nome: "",
+  sobrenome: "",
+  email: "",
+  senha: "",
+  papel: "aluno" as PapelUsuario,
+};
 
 export const AdminUsuarios: React.FC = () => {
-  const [form, setForm] = useState<Form>(FORM_INICIAL);
-  const [enviando, setEnviando] = useState(false);
-  const [msg, setMsg] = useState<Msg>(null);
+  const [form, setForm] = useState(vazio);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState<string | null>(null);
 
-  const set = <K extends keyof Form>(campo: K, valor: Form[K]) =>
-    setForm((f) => ({ ...f, [campo]: valor }));
+  const set =
+    (campo: keyof typeof vazio) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [campo]: e.target.value }));
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMsg(null);
+    setErro(null);
+    setSucesso(null);
 
-    if (!form.nome.trim() || !form.email.trim() || form.senha.length < 6) {
-      setMsg({
-        tipo: "erro",
-        texto: "Preencha nome, e-mail e senha (mín. 6).",
-      });
-      return;
-    }
+    if (!form.nome.trim() || !form.sobrenome.trim())
+      return setErro("Informe nome e sobrenome.");
+    if (form.senha.length < 6)
+      return setErro("A senha precisa ter no mínimo 6 caracteres.");
 
-    setEnviando(true);
+    setCarregando(true);
     const { data, error } = await supabase.functions.invoke("criar-usuario", {
-      body: {
-        nome: form.nome.trim(),
-        email: form.email.trim().toLowerCase(),
-        senha: form.senha,
-        papel: form.papel,
-      },
+      body: form,
     });
-    setEnviando(false);
+    setCarregando(false);
 
-    if (error || data?.erro) {
-      let texto: string = data?.erro || error?.message || "Erro desconhecido";
-      if (error instanceof FunctionsHttpError) {
-        try {
-          const corpo = await error.context.json();
-          if (corpo?.erro) texto = corpo.erro;
-        } catch {
-          /* resposta sem JSON */
-        }
+    if (error || data?.error) {
+      let msg = data?.error ?? error?.message ?? "Erro ao criar usuário";
+      try {
+        const ctx = await (error as { context?: Response })?.context?.json();
+        if (ctx?.error) msg = ctx.error;
+      } catch {
+        /* ignora */
       }
-      setMsg({ tipo: "erro", texto });
-      return;
+      return setErro(msg);
     }
 
-    setMsg({ tipo: "ok", texto: `${form.nome.trim()} entrou na Alvora! 🌅` });
-    setForm(FORM_INICIAL);
+    setSucesso(
+      `${form.nome} ${form.sobrenome} criado! Matrícula: ${data.matricula}`,
+    );
+    setForm(vazio);
   };
 
   return (
-    <Card className="space-y-5 max-w-2xl">
-      <div className="flex items-center gap-4">
-        <IconBubble icone={UserPlus} cor="primary" />
-        <div>
-          <h3 className="text-lg font-extrabold text-ink">Cadastrar usuário</h3>
-          <p className="text-xs text-slate-400">
-            O acesso é liberado na hora, sem confirmação por e-mail.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6 max-w-2xl">
+      <PageHeader
+        titulo="Usuários"
+        descricao="Cadastre alunos, professores e gestores."
+      />
 
-      <form onSubmit={enviar} className="space-y-4">
-        <label className="block text-sm font-semibold text-ink">
-          Nome completo
+      <Card>
+        <form onSubmit={enviar} className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <input
+              required
+              placeholder="Nome *"
+              value={form.nome}
+              onChange={set("nome")}
+              className={inputCls}
+            />
+            <input
+              required
+              placeholder="Sobrenome *"
+              value={form.sobrenome}
+              onChange={set("sobrenome")}
+              className={inputCls}
+            />
+          </div>
           <input
-            value={form.nome}
-            onChange={(e) => set("nome", e.target.value)}
-            placeholder="Ex.: Pedro Albuquerque"
+            required
+            type="email"
+            placeholder="E-mail *"
+            value={form.email}
+            onChange={set("email")}
             className={inputCls}
           />
-        </label>
+          <input
+            required
+            type="password"
+            placeholder="Senha (mín. 6) *"
+            value={form.senha}
+            onChange={set("senha")}
+            className={inputCls}
+          />
+          <select
+            value={form.papel}
+            onChange={set("papel")}
+            className={inputCls}
+          >
+            <option value="aluno">Aluno</option>
+            <option value="professor">Professor</option>
+            <option value="gestor">Gestor</option>
+          </select>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="block text-sm font-semibold text-ink">
-            E-mail
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-              placeholder="pedro@escola.com"
-              className={inputCls}
-            />
-          </label>
-          <label className="block text-sm font-semibold text-ink">
-            Senha
-            <input
-              type="password"
-              value={form.senha}
-              onChange={(e) => set("senha", e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-              className={inputCls}
-            />
-          </label>
-        </div>
-
-        <div>
-          <p className="text-sm font-semibold text-ink mb-1.5">Papel</p>
-          <div className="grid grid-cols-3 gap-2">
-            {PAPEIS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => set("papel", p.id)}
-                className={cn(
-                  "h-11 rounded-xl text-xs font-bold transition-all",
-                  form.papel === p.id
-                    ? "bg-brand text-white shadow-glow"
-                    : "bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary",
-                )}
-              >
-                {p.emoji} {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={enviando}
-          icon={<UserPlus size={15} />}
-        >
-          {enviando ? "Criando..." : "Criar usuário"}
-        </Button>
-      </form>
-
-      {msg && (
-        <p
-          className={cn(
-            "flex items-center gap-2 text-sm font-bold p-4 rounded-xl animate-pop",
-            msg.tipo === "ok"
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-rose-50 text-rose-600",
+          {erro && (
+            <p className="flex items-center gap-2 text-sm text-rose-600 bg-rose-50 p-3 rounded-xl animate-shake">
+              <AlertCircle size={16} /> {erro}
+            </p>
           )}
-        >
-          {msg.tipo === "ok" ? (
-            <CheckCircle2 size={16} />
-          ) : (
-            <XCircle size={16} />
+          {sucesso && (
+            <p className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 p-3 rounded-xl animate-pop">
+              <CheckCircle2 size={16} /> {sucesso}
+            </p>
           )}
-          {msg.texto}
-        </p>
-      )}
-    </Card>
+
+          <Button
+            type="submit"
+            disabled={carregando}
+            icon={<UserPlus size={16} />}
+            className="w-full"
+          >
+            {carregando ? "Criando..." : "Criar usuário"}
+          </Button>
+        </form>
+      </Card>
+    </div>
   );
 };

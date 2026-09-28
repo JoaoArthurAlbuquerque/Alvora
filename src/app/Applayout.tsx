@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   NavLink,
   Navigate,
@@ -37,16 +37,15 @@ export const AppLayout: React.FC = () => {
   const [isDuvidasOpen, setIsDuvidasOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  if (!usuario) return <Navigate to="/login" replace />;
+  const papel = usuario?.papel;
+  const nav = papel ? navPorPapel[papel] : undefined;
 
-  const papel = usuario.papel;
-  const nav = navPorPapel[papel];
+  // Papel inválido/ausente no perfil → encerra a sessão (fora do render)
+  useEffect(() => {
+    if (usuario && !nav) logout();
+  }, [usuario, nav, logout]);
 
-  // Papel inválido/ausente no perfil → volta pro login
-  if (!nav) {
-    logout();
-    return <Navigate to="/login" replace />;
-  }
+  if (!usuario || !nav || !papel) return <Navigate to="/login" replace />;
 
   const nome =
     usuario.nome?.trim() || usuario.email?.split("@")[0] || "Usuário";

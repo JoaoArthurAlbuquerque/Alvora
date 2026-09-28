@@ -3,7 +3,7 @@ import { Radio, KeyRound, Save, Users, X, Zap } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
-import { listaAlunosTurmaMock, sessaoFrequenciaAtiva } from "../../mocks/data";
+import { useAlunosTurma, sessaoFrequenciaAtiva } from "../../mocks/data";
 import { chamadaStore, useChamada } from "../../services/chamadaStore";
 import {
   diarioStore,
@@ -21,6 +21,7 @@ const DURACAO_MS = REGRAS.validadePinMinutos * 60 * 1000;
 export const LancamentoFrequencia: React.FC = () => {
   const { chamadaId, pin, expiraEm, presentesIds } = useChamada();
   const registros = useRegistros();
+  const turma = useAlunosTurma();
   const [ajustesManuais, setAjustesManuais] = useState<
     Record<string, StatusPresenca>
   >({});
@@ -48,7 +49,7 @@ export const LancamentoFrequencia: React.FC = () => {
     return mapa;
   }, [registros]);
 
-  const alunos = listaAlunosTurmaMock.map((a) => {
+  const alunos = turma.map((a) => {
     const viaPin = presentesIds.includes(a.id);
     const salvo = salvosHoje[a.id];
     const mock: StatusPresenca = a.presente ? "PRESENTE_MANUAL" : "FALTA";

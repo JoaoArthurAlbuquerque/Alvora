@@ -111,7 +111,9 @@ export type PapelUsuario = "aluno" | "professor" | "gestor";
 
 export interface Usuario {
   id: string;
-  nome: string;
+  nome: string; // nome completo (nome + sobrenome)
+  sobrenome?: string; // 🆕
+  matricula?: string; // 🆕 gerada automaticamente no Supabase
   email: string;
   papel: PapelUsuario;
   turmaOuCargo: string;

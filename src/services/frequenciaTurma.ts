@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import {
-  listaAlunosTurmaMock,
-  historicoBaseTurmaMock,
+  listarAlunosTurma,
+  useAlunosTurma,
+  historicoBase,
   sessaoFrequenciaAtiva,
+  type AlunoTurma,
 } from "../mocks/data";
 import { useRegistros, contaComoPresenca, diarioStore } from "./diarioStore";
 import { useJustificativas } from "./justificativaStore";
@@ -44,13 +46,10 @@ const contarAbonos = (justificativas: Justificativa[], alunoId: string) =>
 export function calcularFrequenciaTurma(
   registros: RegistroPresenca[],
   justificativas: Justificativa[] = [],
+  turma: AlunoTurma[] = listarAlunosTurma(),
 ): ResumoFrequenciaAluno[] {
-  return listaAlunosTurmaMock.map((a) => {
-    const base = historicoBaseTurmaMock[a.id] ?? {
-      totalAulas: 0,
-      presencas: 0,
-      faltas: 0,
-    };
+  return turma.map((a) => {
+    const base = historicoBase(a.id);
     const meus = registros.filter(
       (r) =>
         r.alunoId === a.id &&
@@ -89,9 +88,10 @@ export function calcularFrequenciaTurma(
 export function useFrequenciaTurma() {
   const registros = useRegistros();
   const justificativas = useJustificativas();
+  const turma = useAlunosTurma();
 
   return useMemo(() => {
-    const alunos = calcularFrequenciaTurma(registros, justificativas);
+    const alunos = calcularFrequenciaTurma(registros, justificativas, turma);
     const emRisco = alunos
       .filter((a) => a.emRisco)
       .sort((x, y) => y.percentualFaltas - x.percentualFaltas);
@@ -119,5 +119,5 @@ export function useFrequenciaTurma() {
       diasRegistrados,
       diarioHojeSalvo,
     };
-  }, [registros, justificativas]);
+  }, [registros, justificativas, turma]);
 }

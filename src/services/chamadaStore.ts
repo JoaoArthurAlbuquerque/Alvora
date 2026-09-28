@@ -41,6 +41,16 @@ function ler(): EstadoChamada {
 
 let cache: EstadoChamada = ler();
 
+// Mantém o cache em dia com outras abas, mesmo sem inscritos
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEY) {
+      cache = ler();
+      window.dispatchEvent(new Event(EVT));
+    }
+  });
+}
+
 function gravar(estado: EstadoChamada) {
   localStorage.setItem(KEY, JSON.stringify(estado));
   cache = estado;
@@ -48,18 +58,8 @@ function gravar(estado: EstadoChamada) {
 }
 
 function subscribe(cb: () => void) {
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) {
-      cache = ler();
-      cb();
-    }
-  };
-  window.addEventListener("storage", onStorage);
   window.addEventListener(EVT, cb);
-  return () => {
-    window.removeEventListener("storage", onStorage);
-    window.removeEventListener(EVT, cb);
-  };
+  return () => window.removeEventListener(EVT, cb);
 }
 
 /** PIN numérico com a quantidade de dígitos definida em REGRAS. */
@@ -84,16 +84,18 @@ export const chamadaStore = {
 
   /** Expira a chamada agora, mas mantém os presentes para salvar no diário. */
   encerrar() {
-    if (!cache.expiraEm) return;
-    gravar({ ...cache, expiraEm: Math.min(cache.expiraEm, Date.now()) });
+    const atual = ler();
+    if (!atual.expiraEm) return;
+    gravar({ ...atual, expiraEm: Math.min(atual.expiraEm, Date.now()) });
   },
 
   confirmar(pin: string, alunoId: string): ResultadoConfirmacao {
-    const { pin: atual, expiraEm, presentesIds } = cache;
-    if (!atual || !expiraEm || Date.now() >= expiraEm) return "expirado";
-    if (pin.trim() !== atual) return "invalido";
+    const atual = ler(); // fonte da verdade, nunca cache velho
+    const { pin: pinAtual, expiraEm, presentesIds } = atual;
+    if (!pinAtual || !expiraEm || Date.now() >= expiraEm) return "expirado";
+    if (pin.trim() !== pinAtual) return "invalido";
     if (presentesIds.includes(alunoId)) return "duplicado";
-    gravar({ ...cache, presentesIds: [...presentesIds, alunoId] });
+    gravar({ ...atual, presentesIds: [...presentesIds, alunoId] });
     return "ok";
   },
 

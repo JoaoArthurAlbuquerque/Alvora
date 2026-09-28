@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
-import { alunoLogadoMock } from "../../mocks/data";
+import { useAlunoDados } from "./useAlunoDados";
+import { registrarAlunoReal } from "../../mocks/data";
+import { REGRAS } from "../../config/regras";
 import {
   chamadaStore,
   type ResultadoConfirmacao,
@@ -15,19 +17,27 @@ const MENSAGENS: Record<ResultadoConfirmacao, { texto: string; cor: string }> =
       cor: "text-rose-600",
     },
     expirado: { texto: "Esta chamada já expirou.", cor: "text-amber-600" },
-    duplicado: {
-      texto: "Você já confirmou presença. 😉",
-      cor: "text-primary",
-    },
+    duplicado: { texto: "Você já confirmou presença. 😉", cor: "text-primary" },
   };
 
 export const ConfirmarPresencaCard: React.FC = () => {
+  const { aluno } = useAlunoDados();
   const [pin, setPin] = useState("");
   const [resultado, setResultado] = useState<ResultadoConfirmacao | null>(null);
+  const digitos = REGRAS.digitosPin;
+
+  // Garante que o aluno real aparece na turma do professor
+  useEffect(() => {
+    registrarAlunoReal({
+      id: aluno.id,
+      nome: aluno.nome,
+      matricula: aluno.matricula,
+    });
+  }, [aluno.id, aluno.nome, aluno.matricula]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setResultado(chamadaStore.confirmar(pin, alunoLogadoMock.id));
+    setResultado(chamadaStore.confirmar(pin, aluno.id));
     setPin("");
   };
 
@@ -39,14 +49,15 @@ export const ConfirmarPresencaCard: React.FC = () => {
       <form onSubmit={handleSubmit} className="flex gap-3">
         <input
           value={pin}
-          onChange={(e) =>
-            setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-          }
+          onChange={(e) => {
+            setPin(e.target.value.replace(/\D/g, "").slice(0, digitos));
+            setResultado(null);
+          }}
           inputMode="numeric"
-          placeholder="PIN de 4 dígitos"
+          placeholder={`PIN de ${digitos} dígitos`}
           className="flex-1 px-4 py-2 rounded-xl border border-primary/20 text-center text-lg font-black tracking-widest focus:outline-none focus:border-primary"
         />
-        <Button type="submit" disabled={pin.length !== 4}>
+        <Button type="submit" disabled={pin.length !== digitos}>
           Confirmar
         </Button>
       </form>

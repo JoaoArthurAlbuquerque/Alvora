@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   SessaoFrequenciaAoVivo,
   Aluno,
@@ -7,6 +8,7 @@ import {
   BoletoFinanceiro,
   DiarioDocenteStatus,
 } from "../types";
+import { criarStorePersistente } from "../services/storePersistente";
 
 export const sessaoFrequenciaAtiva: SessaoFrequenciaAoVivo = {
   id: "sessao-1",
@@ -54,38 +56,49 @@ export const alunoLogadoMock: Aluno = {
   ],
 };
 
-export const listaAlunosTurmaMock = [
-  {
-    id: "aluno-1",
-    nome: "João Arthur Albuquerque",
-    matricula: "202410842",
-    presente: false,
-  },
-  {
-    id: "aluno-2",
-    nome: "Ana Beatriz Souza",
-    matricula: "202410843",
-    presente: true,
-  },
-  {
-    id: "aluno-3",
-    nome: "Carlos Eduardo Lima",
-    matricula: "202410844",
-    presente: true,
-  },
-  {
-    id: "aluno-4",
-    nome: "Mariana Costa",
-    matricula: "202410845",
-    presente: false,
-  },
-  {
-    id: "aluno-5",
-    nome: "Lucas Mendonça Silva",
-    matricula: "202410846",
-    presente: false,
-  },
+export interface AlunoTurma {
+  id: string;
+  nome: string;
+  matricula: string;
+  presente: boolean;
+}
+
+export const listaAlunosTurmaMock: AlunoTurma[] = [
+  { id: "aluno-1", nome: "João Arthur Albuquerque", matricula: "202410842", presente: false },
+  { id: "aluno-2", nome: "Ana Beatriz Souza", matricula: "202410843", presente: true },
+  { id: "aluno-3", nome: "Carlos Eduardo Lima", matricula: "202410844", presente: true },
+  { id: "aluno-4", nome: "Mariana Costa", matricula: "202410845", presente: false },
+  { id: "aluno-5", nome: "Lucas Mendonça Silva", matricula: "202410846", presente: false },
 ];
+
+// ---------- Alunos reais (Supabase) que já entraram no app ----------
+const alunosReais = criarStorePersistente<AlunoTurma[]>("alvora:alunos-reais", []);
+
+/** Coloca o aluno logado na turma (chamar quando o aluno entra no portal). */
+export function registrarAlunoReal(a: { id: string; nome: string; matricula?: string }) {
+  const lista = alunosReais.get();
+  const atual = lista.find((x) => x.id === a.id);
+  const novo: AlunoTurma = {
+    id: a.id,
+    nome: a.nome || "Aluno",
+    matricula: a.matricula || "—",
+    presente: false,
+  };
+  if (atual && atual.nome === novo.nome && atual.matricula === novo.matricula) return;
+  alunosReais.set([...lista.filter((x) => x.id !== a.id), novo]);
+}
+
+/** Turma completa = mock + alunos reais (sem duplicar). */
+export function listarAlunosTurma(reais = alunosReais.get()): AlunoTurma[] {
+  const ids = new Set(listaAlunosTurmaMock.map((a) => a.id));
+  return [...listaAlunosTurmaMock, ...reais.filter((a) => !ids.has(a.id))];
+}
+
+/** Versão reativa e memorizada: referência estável entre renders. */
+export function useAlunosTurma(): AlunoTurma[] {
+  const reais = alunosReais.use();
+  return useMemo(() => listarAlunosTurma(reais), [reais]);
+}
 
 export const alunosEmRiscoMock: AlunoEmRisco[] = [
   {
@@ -225,14 +238,22 @@ export const diariosDocentesMock: DiarioDocenteStatus[] = [
     frequenciaMediaTurma: 76.0,
   },
 ];
+
+export interface HistoricoBase {
+  totalAulas: number;
+  presencas: number;
+  faltas: number;
+}
+
 // Histórico base da Turma A em Front-End (disciplinaId "1")
-export const historicoBaseTurmaMock: Record<
-  string,
-  { totalAulas: number; presencas: number; faltas: number }
-> = {
+export const historicoBaseTurmaMock: Record<string, HistoricoBase> = {
   "aluno-1": { totalAulas: 40, presencas: 38, faltas: 2 }, // igual ao alunoLogadoMock
   "aluno-2": { totalAulas: 40, presencas: 36, faltas: 4 },
   "aluno-3": { totalAulas: 40, presencas: 34, faltas: 6 },
   "aluno-4": { totalAulas: 40, presencas: 30, faltas: 10 }, // 25% → já em risco
   "aluno-5": { totalAulas: 40, presencas: 32, faltas: 8 }, // 20% → mais uma falta e entra no risco 😬
 };
+
+/** Histórico de qualquer aluno. Aluno real sem histórico = igual ao João do mock. */
+export const historicoBase = (alunoId: string): HistoricoBase =>
+  historicoBaseTurmaMock[alunoId] ?? historicoBaseTurmaMock["aluno-1"];
