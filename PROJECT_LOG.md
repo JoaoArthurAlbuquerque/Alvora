@@ -1,35 +1,57 @@
-// PROJECT_LOG.md
-
 # Registro de Continuidade e Arquitetura — Alvora v3
 
-## Stack Decidida
+## Stack Atual
 
-- **Scaffold**: Vite 6+ (React + TypeScript SWC)
+- **Scaffold**: Vite 8 + React 19 + TypeScript 6
 - **Estilização**: Tailwind CSS v4 (CSS-first via `@theme` no `src/index.css`)
-- **Tipografia**: `Fraunces` (serifada display) + `Work Sans` (corpo de alta legibilidade) via `@fontsource`
-- **Estado Global**: Zustand (Persistência no `localStorage` para sessão RBAC)
-- **Estado Assíncrono**: TanStack Query v5 para fixtures/mocks com latência simulada
-- **Primitivas UI Acessíveis**: Radix UI (Dialog, Tabs, Dropdown Menu) + Lucide React (ícones)
+- **Tipografia**: Plus Jakarta Sans (Google Fonts)
+- **Backend**: Supabase (Auth, Postgres com RLS, Edge Functions)
+- **Estado Global**: Zustand (sessão persistida e validada contra o token do Supabase)
+- **Estado Assíncrono**: TanStack Query v5
+- **UI**: Radix UI (Dialog, Tabs, Dropdown) + Lucide React
+- **Testes**: Vitest + jsdom
+- **Deploy**: Vercel (SPA rewrite em `vercel.json`)
 
-## Diretrizes de Identidade Visual (Amanhecer)
+## Identidade Visual
 
-- Fundo global neutro quente `#FAF7F2` (nunca branco puro corporativo)
-- Cabeçalho horizonte com micro-gradiente sutil azul-profundo (`#0B3D66`)
-- Badges de auditoria e cálculo por IA com linguagem direta ("Calculado por IA · Auditado")
-- Selos de risco com indicador visual triplo (cor + ícone + rótulo textual em contraste AA)
+- Cor primária `#5170ff` (hover `#3b59ff`, deep `#2a3fd6`)
+- Fundo com gradientes radiais suaves sobre `#f4f6ff`
+- Gradiente de marca `.bg-brand` (135°, azul → violeta)
+- Selos de risco com indicador triplo (cor + ícone + rótulo, contraste AA)
+- Respeita `prefers-reduced-motion`
+
+## Segurança
+
+- RLS auditada em todas as tabelas
+- Matrícula obtida via RPC `minha_matricula` (sempre do usuário logado)
+- Criação de usuários exclusiva via Edge Function `criar-usuario`
+- Storage não utilizado. Se for usado: buckets privados + signed URLs
 
 ## Decisões Tomadas
 
-- 2026-09-20: Criação do scaffolding oficial Vite + React TS.
-- 2026-09-20: Implementação do RBAC em 3 perfis (Aluno, Professor, Gestor) com login funcional de 3 rotas (Magic Link, Matrícula+Senha, Código Único).
-- 2026-09-20: Central de Dúvidas Transversal multiperfil integrada a todos os portais.
-- 2026-09-20: Autosave reativo no lançamento de notas do Professor mantido via `localStorage`.
+- 2026-09-20: Scaffolding Vite + React TS
+- 2026-09-20: RBAC em 3 perfis (Aluno, Professor, Gestor)
+- 2026-09-20: Central de Dúvidas transversal
+- 2026-09-28: Migração de mocks para Supabase Auth + perfis reais
+- 2026-09-28: Auditoria de segurança (RLS, auth store, storage) concluída
+- 2026-09-28: Faxina (App.css removido, fontes duplicadas, tsbuildinfo no gitignore)
 
-## O que já foi concluído
+## Concluído
 
-- [x] Tokens de design da marca Alvora em CSS puro com `@theme`
-- [x] Login com 3 personas mockadas e persistência real
-- [x] Portal do Aluno com Notas, Frequência Assíncrona e Assistente Pedagógico
-- [x] Portal do Professor com autosave de notas, auditoria de presença por IA e alertas de evasão
-- [x] Portal do Gestor com Dashboard Executivo, Ranking de Risco e Auditoria
-- [x] Central de Dúvidas Frequentes da Plataforma (Transversal)
+- [x] Tokens de design com `@theme`
+- [x] Login com Supabase e validação de sessão
+- [x] Portal do Aluno: Início, Disciplinas, Frequência, Boletim, Secretaria
+- [x] Portal do Professor: Início, Chamada por PIN, Notas
+- [x] Portal do Gestor: Indicadores, Usuários
+- [x] Radar de risco de evasão sincronizado
+- [x] Assistente IA, Calendário (modal), Central de Dúvidas
+
+## Próximos Passos
+
+- [ ] Perfil (3 papéis)
+- [ ] Gestor → Alunos & Turmas (incluindo filtro `?status=risco`)
+- [ ] Professor → Minhas Turmas
+- [ ] Professor → Alertas de Faltas
+- [ ] Gestor → Regras (migrar `config/regras.ts` para uma tabela)
+- [ ] Gestor → Professores e Auditoria
+- [ ] Rota de Calendário

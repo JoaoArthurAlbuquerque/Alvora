@@ -25,3 +25,14 @@ dist-ssr
 .env
 .env.local
 .env*.local
+
+# Build info do TypeScript
+*.tsbuildinfo
+
+# Supabase local
+supabase/.temp
+supabase/.branches
+
+# Variáveis de ambiente
+.env
+.env.local

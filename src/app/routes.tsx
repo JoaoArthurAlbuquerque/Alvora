@@ -14,6 +14,7 @@ import { BoletimAluno } from "../modules/aluno/BoletimAluno";
 import { SecretariaAluno } from "../modules/aluno/SecretariaAluno";
 import { PortalProfessor } from "../modules/professor/PortalProfessor";
 import { LancamentoFrequencia } from "../modules/professor/LancamentoFrequencia";
+import { NotasProfessor } from "../modules/professor/NotasProfessor";
 import { PortalGestor } from "../modules/gestor/PortalGestor";
 import { AdminUsuarios } from "../modules/gestor/AdminUsuarios";
 import { EmConstrucao } from "../core/ui/EmConstrucao";
@@ -59,13 +60,8 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <PortalProfessor /> },
               { path: "frequencia", element: <LancamentoFrequencia /> },
-              ...placeholder([
-                "turmas",
-                "notas",
-                "alertas",
-                "calendario",
-                "perfil",
-              ]),
+              { path: "notas", element: <NotasProfessor /> },
+              ...placeholder(["turmas", "alertas", "calendario", "perfil"]),
             ],
           },
           {
