@@ -1,22 +1,13 @@
+import type { ComponentType } from "react";
 import {
   createBrowserRouter,
   RouterProvider,
   Navigate,
 } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { AppLayout } from "./Applayout";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { LoginPage } from "../modules/autenticacao/LoginPage";
-import { AlunoShell } from "../modules/aluno/AlunoShell";
-import { PortalAluno } from "../modules/aluno/PortalAluno";
-import { DisciplinasAluno } from "../modules/aluno/DisciplinasAluno";
-import { FrequenciaAluno } from "../modules/aluno/FrequenciaAluno";
-import { BoletimAluno } from "../modules/aluno/BoletimAluno";
-import { SecretariaAluno } from "../modules/aluno/SecretariaAluno";
-import { PortalProfessor } from "../modules/professor/PortalProfessor";
-import { LancamentoFrequencia } from "../modules/professor/LancamentoFrequencia";
-import { NotasProfessor } from "../modules/professor/NotasProfessor";
-import { PortalGestor } from "../modules/gestor/PortalGestor";
-import { AdminUsuarios } from "../modules/gestor/AdminUsuarios";
 import { EmConstrucao } from "../core/ui/EmConstrucao";
 import { useAuthStore } from "../core/auth/useAuthStore";
 
@@ -24,6 +15,22 @@ function RedirecionarPorPapel() {
   const usuario = useAuthStore((s) => s.usuario);
   return <Navigate to={usuario ? `/${usuario.papel}` : "/login"} replace />;
 }
+
+function Carregando() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 size={28} className="animate-spin text-primary" />
+    </div>
+  );
+}
+
+/** Carrega um componente nomeado sob demanda */
+const tela =
+  <K extends string>(
+    importar: () => Promise<Record<K, ComponentType>>,
+    nome: K,
+  ) =>
+  async () => ({ Component: (await importar())[nome] });
 
 const placeholder = (paths: string[]) =>
   paths.map((path) => ({ path, element: <EmConstrucao /> }));
@@ -35,6 +42,7 @@ const router = createBrowserRouter([
     children: [
       {
         element: <AppLayout />,
+        HydrateFallback: Carregando,
         children: [
           { index: true, element: <RedirecionarPorPapel /> },
           {
@@ -42,13 +50,46 @@ const router = createBrowserRouter([
             element: <ProtectedRoute papeis={["aluno"]} />,
             children: [
               {
-                element: <AlunoShell />,
+                lazy: tela(
+                  () => import("../modules/aluno/AlunoShell"),
+                  "AlunoShell",
+                ),
                 children: [
-                  { index: true, element: <PortalAluno /> },
-                  { path: "disciplinas", element: <DisciplinasAluno /> },
-                  { path: "frequencia", element: <FrequenciaAluno /> },
-                  { path: "boletim", element: <BoletimAluno /> },
-                  { path: "secretaria", element: <SecretariaAluno /> },
+                  {
+                    index: true,
+                    lazy: tela(
+                      () => import("../modules/aluno/PortalAluno"),
+                      "PortalAluno",
+                    ),
+                  },
+                  {
+                    path: "disciplinas",
+                    lazy: tela(
+                      () => import("../modules/aluno/DisciplinasAluno"),
+                      "DisciplinasAluno",
+                    ),
+                  },
+                  {
+                    path: "frequencia",
+                    lazy: tela(
+                      () => import("../modules/aluno/FrequenciaAluno"),
+                      "FrequenciaAluno",
+                    ),
+                  },
+                  {
+                    path: "boletim",
+                    lazy: tela(
+                      () => import("../modules/aluno/BoletimAluno"),
+                      "BoletimAluno",
+                    ),
+                  },
+                  {
+                    path: "secretaria",
+                    lazy: tela(
+                      () => import("../modules/aluno/SecretariaAluno"),
+                      "SecretariaAluno",
+                    ),
+                  },
                   ...placeholder(["calendario", "perfil"]),
                 ],
               },
@@ -58,9 +99,27 @@ const router = createBrowserRouter([
             path: "professor",
             element: <ProtectedRoute papeis={["professor"]} />,
             children: [
-              { index: true, element: <PortalProfessor /> },
-              { path: "frequencia", element: <LancamentoFrequencia /> },
-              { path: "notas", element: <NotasProfessor /> },
+              {
+                index: true,
+                lazy: tela(
+                  () => import("../modules/professor/PortalProfessor"),
+                  "PortalProfessor",
+                ),
+              },
+              {
+                path: "frequencia",
+                lazy: tela(
+                  () => import("../modules/professor/LancamentoFrequencia"),
+                  "LancamentoFrequencia",
+                ),
+              },
+              {
+                path: "notas",
+                lazy: tela(
+                  () => import("../modules/professor/NotasProfessor"),
+                  "NotasProfessor",
+                ),
+              },
               ...placeholder(["turmas", "alertas", "calendario", "perfil"]),
             ],
           },
@@ -68,8 +127,20 @@ const router = createBrowserRouter([
             path: "gestor",
             element: <ProtectedRoute papeis={["gestor"]} />,
             children: [
-              { index: true, element: <PortalGestor /> },
-              { path: "usuarios", element: <AdminUsuarios /> },
+              {
+                index: true,
+                lazy: tela(
+                  () => import("../modules/gestor/PortalGestor"),
+                  "PortalGestor",
+                ),
+              },
+              {
+                path: "usuarios",
+                lazy: tela(
+                  () => import("../modules/gestor/AdminUsuarios"),
+                  "AdminUsuarios",
+                ),
+              },
               ...placeholder([
                 "turmas",
                 "professores",

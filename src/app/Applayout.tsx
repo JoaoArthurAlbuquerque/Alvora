@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import {
   NavLink,
   Navigate,
@@ -19,9 +19,25 @@ import {
 import { useAuthStore } from "../core/auth/useAuthStore";
 import { cn } from "../core/lib/utils";
 import { navPorPapel, acoesExtras, rotuloPapel } from "./navegacao";
-import { AssistentePedagogicoModal } from "../modules/assistente-pedagogico/AssistentePedagogicoModal";
-import { CentralDuvidasDrawer } from "../modules/central-duvidas/CentralDuvidasDrawer";
-import { CalendarioModal } from "../modules/calendario/CalendarioModal";
+
+// Modais carregados sob demanda
+const AssistentePedagogicoModal = lazy(() =>
+  import("../modules/assistente-pedagogico/AssistentePedagogicoModal").then(
+    (m) => ({ default: m.AssistentePedagogicoModal }),
+  ),
+);
+const CentralDuvidasDrawer = lazy(() =>
+  import("../modules/central-duvidas/CentralDuvidasDrawer").then((m) => ({
+    default: m.CentralDuvidasDrawer,
+  })),
+);
+const CalendarioModal = lazy(() =>
+  import("../modules/calendario/CalendarioModal").then((m) => ({
+    default: m.CalendarioModal,
+  })),
+);
+
+type Ferramenta = "ia" | "duvidas" | "calendario";
 
 const itemBase =
   "group relative w-full flex items-center gap-3 px-4 h-11 rounded-xl text-sm font-medium transition-all duration-200";
@@ -33,9 +49,10 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [menuAberto, setMenuAberto] = useState(false);
-  const [isAiOpen, setIsAiOpen] = useState(false);
-  const [isDuvidasOpen, setIsDuvidasOpen] = useState(false);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [aberto, setAberto] = useState<Ferramenta | null>(null);
+  const [carregados, setCarregados] = useState<Set<Ferramenta>>(
+    () => new Set(),
+  );
 
   const papel = usuario?.papel;
   const nav = papel ? navPorPapel[papel] : undefined;
@@ -62,26 +79,24 @@ export const AppLayout: React.FC = () => {
     (pathname.endsWith("/perfil") ? "Meu Perfil" : "");
 
   const fechar = () => setMenuAberto(false);
-  const abrir = (setter: (v: boolean) => void) => () => {
+  const abrir = (f: Ferramenta) => () => {
     fechar();
-    setter(true);
+    setCarregados((s) => (s.has(f) ? s : new Set(s).add(f)));
+    setAberto(f);
   };
+  const fecharFerramenta = () => setAberto(null);
   const sair = async () => {
     await logout();
     navigate("/login", { replace: true });
   };
 
   const ferramentas = [
-    { label: "Assistente IA", icone: Sparkles, onClick: abrir(setIsAiOpen) },
-    {
-      label: "Calendário",
-      icone: CalendarDays,
-      onClick: abrir(setIsCalendarOpen),
-    },
+    { label: "Assistente IA", icone: Sparkles, onClick: abrir("ia") },
+    { label: "Calendário", icone: CalendarDays, onClick: abrir("calendario") },
     {
       label: "Central de Dúvidas",
       icone: CircleHelp,
-      onClick: abrir(setIsDuvidasOpen),
+      onClick: abrir("duvidas"),
     },
   ];
 
@@ -154,7 +169,7 @@ export const AppLayout: React.FC = () => {
 
       {/* Card promocional da IA */}
       <button
-        onClick={abrir(setIsAiOpen)}
+        onClick={abrir("ia")}
         className="group mt-auto mb-3 relative overflow-hidden rounded-2xl bg-brand p-4 text-left text-white shadow-glow hover:-translate-y-0.5 transition-transform"
       >
         <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 group-hover:scale-125 transition-transform duration-500" />
@@ -254,25 +269,33 @@ export const AppLayout: React.FC = () => {
 
       {/* Botão flutuante de dúvidas */}
       <button
-        onClick={abrir(setIsDuvidasOpen)}
+        onClick={abrir("duvidas")}
         aria-label="Central de Dúvidas"
         className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-brand text-white shadow-glow flex items-center justify-center hover:scale-110 hover:rotate-12 transition-transform duration-300"
       >
         <CircleHelp size={24} />
       </button>
 
-      <AssistentePedagogicoModal
-        isOpen={isAiOpen}
-        onClose={() => setIsAiOpen(false)}
-      />
-      <CentralDuvidasDrawer
-        isOpen={isDuvidasOpen}
-        onClose={() => setIsDuvidasOpen(false)}
-      />
-      <CalendarioModal
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-      />
+      <Suspense fallback={null}>
+        {carregados.has("ia") && (
+          <AssistentePedagogicoModal
+            isOpen={aberto === "ia"}
+            onClose={fecharFerramenta}
+          />
+        )}
+        {carregados.has("duvidas") && (
+          <CentralDuvidasDrawer
+            isOpen={aberto === "duvidas"}
+            onClose={fecharFerramenta}
+          />
+        )}
+        {carregados.has("calendario") && (
+          <CalendarioModal
+            isOpen={aberto === "calendario"}
+            onClose={fecharFerramenta}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };
