@@ -3,15 +3,34 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Alvora</title>
+
+  <!-- SEO -->
+  <title>Alvora | Plataforma Escolar</title>
+  <meta name="description" content="Alvora: plataforma escolar que conecta alunos, professores e gestores em um só lugar. Boletins, frequência, atividades e muito mais." />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#5170ff" />
+
+  <!-- Ícones -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
+  <!-- Open Graph (compartilhamento em WhatsApp, redes sociais etc.) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="Alvora | Plataforma Escolar" />
+  <meta property="og:description" content="Conectando alunos, professores e gestores em um só lugar." />
+  <meta property="og:site_name" content="Alvora" />
+
+  <!-- Fontes (otimizado) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 
 <body class="antialiased font-sans">
+  <noscript>Ative o JavaScript para usar o Alvora.</noscript>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
