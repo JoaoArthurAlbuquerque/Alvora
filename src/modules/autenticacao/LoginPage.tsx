@@ -1,6 +1,6 @@
 // src/modules/autenticacao/LoginPage.tsx
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import {
   GraduationCap,
   BookOpen,
@@ -14,6 +14,7 @@ import {
   Sparkles,
   TrendingUp,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "../../core/auth/useAuthStore";
 import { Button } from "../../core/ui/Button";
@@ -27,39 +28,62 @@ const ROLES: { id: Role; label: string; icone: typeof GraduationCap }[] = [
   { id: "gestor", label: "Gestor", icone: BarChart3 },
 ];
 
+const ERROS: Record<string, string> = {
+  "Invalid login credentials": "E-mail ou senha incorretos.",
+  "Email not confirmed": "Confirme seu e-mail antes de entrar.",
+};
+
 const inputCls =
   "w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-ink placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition";
 
 export const LoginPage: React.FC = () => {
   const [role, setRole] = useState<Role>("aluno");
-  const [email, setEmail] = useState("aluno@alvora.edu.br");
+  const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [ver, setVer] = useState(false);
   const [carregando, setCarregando] = useState(false);
-  const login = useAuthStore((s) => s.login);
+  const [erro, setErro] = useState<string | null>(null);
+  const { usuario, login, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  if (usuario) return <Navigate to={`/${usuario.papel}`} replace />;
 
   const idx = ROLES.findIndex((r) => r.id === role);
 
   const trocarRole = (r: Role) => {
     setRole(r);
-    setEmail(`${r}@alvora.edu.br`);
+    setErro(null);
   };
 
-  const entrar = (e: React.SyntheticEvent) => {
+  const entrar = async (e: React.SyntheticEvent) => {
     e.preventDefault();
+    if (!email || !senha) return setErro("Preencha e-mail e senha.");
+
     setCarregando(true);
-    setTimeout(() => {
-      login(role);
-      navigate(`/${role}`);
-    }, 600);
+    setErro(null);
+
+    const msg = await login(email.trim(), senha);
+    if (msg) {
+      setCarregando(false);
+      return setErro(ERROS[msg] ?? msg);
+    }
+
+    const papel = useAuthStore.getState().usuario?.papel;
+    if (papel !== role) {
+      await logout();
+      setCarregando(false);
+      return setErro(
+        `Esta conta não é de ${ROLES[idx].label}. Selecione o perfil correto.`,
+      );
+    }
+
+    navigate(`/${papel}`, { replace: true });
   };
 
   return (
     <main className="grid min-h-screen w-full lg:grid-cols-2 bg-white">
       {/* ESQUERDA */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-brand p-12 text-white">
-        {/* bolhas de luz */}
         <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/10 blur-3xl animate-float" />
         <div className="pointer-events-none absolute bottom-0 right-0 w-80 h-80 rounded-full bg-fuchsia-400/20 blur-3xl animate-float [animation-delay:1.5s]" />
         <div
@@ -87,7 +111,6 @@ export const LoginPage: React.FC = () => {
             </h2>
           </div>
 
-          {/* cards flutuantes */}
           <div className="flex gap-4 stagger">
             <div className="p-4 rounded-2xl bg-white/15 backdrop-blur border border-white/20 animate-float">
               <TrendingUp size={18} className="mb-2" />
@@ -175,6 +198,7 @@ export const LoginPage: React.FC = () => {
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nome@escola.edu.br"
@@ -207,6 +231,8 @@ export const LoginPage: React.FC = () => {
                 <input
                   id="senha"
                   type={ver ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   placeholder="••••••••"
@@ -226,10 +252,22 @@ export const LoginPage: React.FC = () => {
             <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
               <input
                 type="checkbox"
+                defaultChecked
                 className="h-4 w-4 rounded accent-primary"
               />
               Manter conectado
             </label>
+
+            {erro && (
+              <p
+                key={erro}
+                role="alert"
+                className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 rounded-xl px-3.5 py-2.5 animate-shake"
+              >
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                {erro}
+              </p>
+            )}
 
             <Button
               type="submit"

@@ -7,6 +7,7 @@ import {
   FileClock,
   Radar,
   FileCheck2,
+  UserPlus,
 } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { PageHeader } from "../../core/ui/PageHeader";
@@ -18,8 +19,9 @@ import { cn } from "../../core/lib/utils";
 import { FREQ_MINIMA, pad } from "./constantes";
 import { RadarGestor } from "./RadarGestor";
 import { JustificativasGestor } from "./JustificativasGestor";
+import { AdminUsuarios } from "./AdminUsuarios";
 
-type Aba = "radar" | "justificativas";
+type Aba = "radar" | "justificativas" | "usuarios";
 
 export const PortalGestor: React.FC = () => {
   const alertas = useAlertas();
@@ -69,19 +71,15 @@ export const PortalGestor: React.FC = () => {
     },
   ] as const;
 
-  const abas = [
+  const abas: { id: Aba; label: string; icone: typeof Radar; qtd: number }[] = [
+    { id: "radar", label: "Radar de risco", icone: Radar, qtd: alertas.length },
     {
-      id: "radar" as const,
-      label: "Radar de risco",
-      icone: Radar,
-      qtd: alertas.length,
-    },
-    {
-      id: "justificativas" as const,
+      id: "justificativas",
       label: "Justificativas",
       icone: FileCheck2,
       qtd: justPend,
     },
+    { id: "usuarios", label: "Usuários", icone: UserPlus, qtd: 0 },
   ];
 
   return (
@@ -134,7 +132,9 @@ export const PortalGestor: React.FC = () => {
       </nav>
 
       <div key={aba} className="animate-fade-up">
-        {aba === "radar" ? <RadarGestor /> : <JustificativasGestor />}
+        {aba === "radar" && <RadarGestor />}
+        {aba === "justificativas" && <JustificativasGestor />}
+        {aba === "usuarios" && <AdminUsuarios />}
       </div>
     </div>
   );

@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  NavLink,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   Menu,
   X,
@@ -31,9 +37,25 @@ export const AppLayout: React.FC = () => {
   const [isDuvidasOpen, setIsDuvidasOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  if (!usuario) return null;
+  if (!usuario) return <Navigate to="/login" replace />;
+
   const papel = usuario.papel;
   const nav = navPorPapel[papel];
+
+  // Papel inválido/ausente no perfil → volta pro login
+  if (!nav) {
+    logout();
+    return <Navigate to="/login" replace />;
+  }
+
+  const nome =
+    usuario.nome?.trim() || usuario.email?.split("@")[0] || "Usuário";
+  const primeiroNome = nome.split(" ")[0];
+  const inicial = nome
+    .replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "")
+    .charAt(0)
+    .toUpperCase();
+
   const paginaAtual =
     [...nav]
       .sort((a, b) => b.path.length - a.path.length)
@@ -45,13 +67,10 @@ export const AppLayout: React.FC = () => {
     fechar();
     setter(true);
   };
-  const sair = () => {
-    logout();
+  const sair = async () => {
+    await logout();
     navigate("/login", { replace: true });
   };
-  const inicial = usuario.nome
-    .replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "")
-    .charAt(0);
 
   const ferramentas = [
     { label: "Assistente IA", icone: Sparkles, onClick: abrir(setIsAiOpen) },
@@ -110,7 +129,7 @@ export const AppLayout: React.FC = () => {
           Ferramentas
         </p>
         <div className="space-y-1">
-          {acoesExtras[papel].map(({ label, path, icone: Icone }) => (
+          {(acoesExtras[papel] ?? []).map(({ label, path, icone: Icone }) => (
             <button
               key={label}
               onClick={() => {
@@ -157,9 +176,7 @@ export const AppLayout: React.FC = () => {
             {inicial}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink truncate">
-              {usuario.nome}
-            </p>
+            <p className="text-sm font-semibold text-ink truncate">{nome}</p>
             <p className="text-xs text-slate-400">{rotuloPapel[papel]}</p>
           </div>
         </NavLink>
@@ -223,7 +240,7 @@ export const AppLayout: React.FC = () => {
               <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                 {inicial}
               </span>
-              {usuario.nome.split(" ")[0]}
+              {primeiroNome}
             </NavLink>
           </div>
         </header>

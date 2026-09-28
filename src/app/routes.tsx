@@ -16,7 +16,6 @@ import { PortalProfessor } from "../modules/professor/PortalProfessor";
 import { LancamentoFrequencia } from "../modules/professor/LancamentoFrequencia";
 import { PortalGestor } from "../modules/gestor/PortalGestor";
 import { AdminUsuarios } from "../modules/gestor/AdminUsuarios";
-import CriarUsuario from "../modules/gestor/CriarUsuario"; // 👈 novo
 import { EmConstrucao } from "../core/ui/EmConstrucao";
 import { useAuthStore } from "../core/auth/useAuthStore";
 
@@ -75,7 +74,6 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <PortalGestor /> },
               { path: "usuarios", element: <AdminUsuarios /> },
-              { path: "criar-usuario", element: <CriarUsuario /> }, // 👈 novo
               ...placeholder([
                 "turmas",
                 "professores",
