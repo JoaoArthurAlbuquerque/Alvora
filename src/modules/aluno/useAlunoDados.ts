@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useAuthStore } from "../../core/auth/useAuthStore";
-import { alunoLogadoMock } from "../../mocks/data";
+import { alunoLogadoMock, boletimAlunoMock } from "../../mocks/data";
 import { calcularPercentual } from "../../utils/frequencia";
 import {
   useJustificativas,
@@ -11,6 +11,17 @@ import {
   aplicarRegistros,
 } from "../../services/diarioStore";
 import type { Aluno } from "../../types";
+
+/** Média das médias parciais lançadas (ignora disciplinas sem nota). */
+export function calcularMediaGeral(
+  boletim: { mediaParcial?: number | null }[],
+): number | null {
+  const notas = boletim
+    .map((b) => b.mediaParcial)
+    .filter((m): m is number => typeof m === "number");
+  if (!notas.length) return null;
+  return Number((notas.reduce((s, m) => s + m, 0) / notas.length).toFixed(2));
+}
 
 /** Identidade vem do Supabase; notas e frequência seguem mock por enquanto. */
 export function useAlunoDados() {
@@ -46,5 +57,7 @@ export function useAlunoDados() {
     return calcularPercentual(presencas, total);
   }, [historico]);
 
-  return { aluno, historico, justificativas, frequenciaGlobal };
+  const mediaGeral = useMemo(() => calcularMediaGeral(boletimAlunoMock), []);
+
+  return { aluno, historico, justificativas, frequenciaGlobal, mediaGeral };
 }

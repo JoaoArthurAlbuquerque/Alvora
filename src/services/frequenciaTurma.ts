@@ -9,6 +9,7 @@ import {
 import { useRegistros, contaComoPresenca, diarioStore } from "./diarioStore";
 import { useJustificativas } from "./justificativaStore";
 import { LIMITE_FALTAS_PCT } from "../config/regras";
+import { classificar } from "./radarRisco";
 import type { RegistroPresenca } from "../types";
 
 export const TURMA_ID = "turma-a";
@@ -27,6 +28,7 @@ export interface ResumoFrequenciaAluno {
   faltasAbonadas: number;
   percentualFrequencia: number;
   percentualFaltas: number;
+  /** Risco APENAS por faltas (regra vem de classificar). Para risco completo use o radar. */
   emRisco: boolean;
 }
 
@@ -80,7 +82,7 @@ export function calcularFrequenciaTurma(
       faltasAbonadas,
       percentualFrequencia: Number((100 - percentualFaltas).toFixed(1)),
       percentualFaltas,
-      emRisco: percentualFaltas > LIMITE_FALTAS_PCT,
+      emRisco: classificar(percentualFaltas, null).motivo !== null,
     };
   });
 }

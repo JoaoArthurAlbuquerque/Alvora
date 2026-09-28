@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Users,
   Activity,
@@ -12,9 +12,10 @@ import {
 import { Card } from "../../core/ui/Card";
 import { PageHeader } from "../../core/ui/PageHeader";
 import { IconBubble } from "../../core/ui/IconBubble";
-import { useAlertas } from "../../services/radarRisco";
+import { useAlertas, alertaAtivo } from "../../services/radarRisco";
 import { useFrequenciaTurma } from "../../services/frequenciaTurma";
 import { useJustificativas } from "../../services/justificativaStore";
+import { MEDIA_MINIMA, LIMITE_FALTAS_PCT } from "../../config/regras";
 import { cn } from "../../core/lib/utils";
 import { FREQ_MINIMA, pad } from "./constantes";
 import { RadarGestor } from "./RadarGestor";
@@ -24,7 +25,8 @@ import { AdminUsuarios } from "./AdminUsuarios";
 type Aba = "radar" | "justificativas" | "usuarios";
 
 export const PortalGestor: React.FC = () => {
-  const alertas = useAlertas();
+  const todos = useAlertas();
+  const alertas = useMemo(() => todos.filter(alertaAtivo), [todos]);
   const justificativas = useJustificativas();
   const { alunos, mediaFrequencia } = useFrequenciaTurma();
   const [aba, setAba] = useState<Aba>("radar");
@@ -49,9 +51,9 @@ export const PortalGestor: React.FC = () => {
       cor: dentroMeta ? "emerald" : "rose",
     },
     {
-      label: "Alertas ativos",
+      label: "Alertas",
       valor: pad(alertas.length),
-      sub: "Faltas ou nota baixa",
+      sub: `Faltas > ${LIMITE_FALTAS_PCT}% ou média < ${MEDIA_MINIMA}`,
       icone: AlertTriangle,
       cor: alertas.length ? "rose" : "emerald",
     },

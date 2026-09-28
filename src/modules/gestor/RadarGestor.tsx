@@ -12,7 +12,11 @@ import {
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { IconBubble } from "../../core/ui/IconBubble";
-import { useAlertas, alertaStore } from "../../services/radarRisco";
+import {
+  useAlertas,
+  alertaStore,
+  alertaAtivo,
+} from "../../services/radarRisco";
 import { useFrequenciaTurma } from "../../services/frequenciaTurma";
 import { cn } from "../../core/lib/utils";
 import {
@@ -27,7 +31,8 @@ import {
 import { ModalTexto } from "./ModalTexto";
 
 export const RadarGestor: React.FC = () => {
-  const alertas = useAlertas();
+  const todos = useAlertas();
+  const alertas = useMemo(() => todos.filter(alertaAtivo), [todos]);
   const { alunos } = useFrequenciaTurma();
   const [filtro, setFiltro] = useState<Filtro>("TODOS");
   const [busca, setBusca] = useState("");
@@ -166,9 +171,7 @@ export const RadarGestor: React.FC = () => {
                       <span className="text-slate-400">
                         {aluno.faltas}/{aluno.totalAulas} faltas
                       </span>
-                      <b
-                        className={aluno.emRisco ? "text-rose-600" : "text-ink"}
-                      >
+                      <b className={aluno.emRisco ? "text-rose-600" : "text-ink"}>
                         {aluno.percentualFrequencia}%
                       </b>
                     </div>

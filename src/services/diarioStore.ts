@@ -1,22 +1,22 @@
 import { useSyncExternalStore } from "react";
-import { FREQ_MINIMA } from "../config/regras";
+import { FREQ_MINIMA, MARGEM_FALTAS_PP } from "../config/regras";
 import { calcularPercentual } from "../utils/frequencia";
 import type { RegistroPresenca, StatusPresenca } from "../types";
 
 const KEY = "alvora:diario";
 const EVT = "alvora:diario-change";
 
-/** Frequência mínima vem de config/regras; a faixa de alerta continua aqui (em %). */
+/** Tudo derivado de config/regras: mesma faixa de "atenção" do radar. */
 export { FREQ_MINIMA }; // PortalAluno continua importando daqui
-export const FREQ_ALERTA = 80;
+export const FREQ_ALERTA = FREQ_MINIMA + MARGEM_FALTAS_PP;
 
 export type SituacaoFrequencia = "segura" | "atencao" | "reprovado";
 
-/** Classifica um percentual de frequência. */
+/** Classifica um percentual de frequência (espelha classificar() do radar). */
 export const situacaoFrequencia = (percentual: number): SituacaoFrequencia =>
   percentual < FREQ_MINIMA
     ? "reprovado"
-    : percentual < FREQ_ALERTA
+    : percentual <= FREQ_ALERTA
       ? "atencao"
       : "segura";
 
@@ -62,7 +62,7 @@ export function aplicarRegistros<T extends ItemFrequencia>(
       presencas,
       faltas,
       totalAulas,
-      percentualFrequencia: calcularPercentual(presencas, dadas), // ✅ sem toFixed
+      percentualFrequencia: calcularPercentual(presencas, dadas),
     };
   });
 }

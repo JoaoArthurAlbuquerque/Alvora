@@ -18,6 +18,7 @@ import {
 } from "../../services/frequenciaTurma";
 import { useRadarRisco } from "../../services/radarRisco";
 import { useMediasTurma } from "../../services/notas";
+import { FREQ_MINIMA, MEDIA_MINIMA } from "../../config/regras";
 import type { TabProfessor } from "../../types";
 import { cn } from "../../core/lib/utils";
 import { ESTILO_RISCO, PROFESSOR_ID, pad, iniciais } from "./constantes";
@@ -28,14 +29,14 @@ export const InicioProfessor: React.FC<{
   const { alunos, mediaFrequencia, diasRegistrados, diarioHojeSalvo } =
     useFrequenciaTurma();
   const medias = useMediasTurma(alunos);
-  const { itens: radar } = useRadarRisco(
+  const { itens: radar, contagem } = useRadarRisco(
     alunos,
     medias,
     TURMA_ID,
     PROFESSOR_ID,
   );
-  const alertas = radar.filter((a) => a.nivel !== "ok");
-  const freqOk = mediaFrequencia >= 100 - LIMITE_FALTAS_PCT;
+  const freqOk = mediaFrequencia >= FREQ_MINIMA;
+  const turmaTranquila = contagem.alertas === 0 && contagem.atencao === 0;
 
   const kpis = [
     {
@@ -53,11 +54,13 @@ export const InicioProfessor: React.FC<{
       cor: diarioHojeSalvo ? "emerald" : "amber",
     },
     {
-      label: "Alunos em risco",
-      valor: pad(alertas.length),
-      sub: `Faltas > ${LIMITE_FALTAS_PCT}% ou nota baixa`,
+      label: "Alertas",
+      valor: pad(contagem.alertas),
+      sub: contagem.atencao
+        ? `+${contagem.atencao} em atenção · faltas > ${LIMITE_FALTAS_PCT}% ou média < ${MEDIA_MINIMA}`
+        : `Faltas > ${LIMITE_FALTAS_PCT}% ou média < ${MEDIA_MINIMA}`,
       icone: AlertTriangle,
-      cor: alertas.length ? "rose" : "emerald",
+      cor: contagem.alertas ? "rose" : contagem.atencao ? "amber" : "emerald",
     },
   ] as const;
 
@@ -110,7 +113,7 @@ export const InicioProfessor: React.FC<{
           </span>
         </div>
 
-        {alertas.length === 0 && (
+        {turmaTranquila && (
           <p className="text-sm font-bold text-emerald-600 bg-emerald-50 p-4 rounded-xl text-center animate-pop">
             🎉 Nenhum aluno em risco. Turma afiada!
           </p>

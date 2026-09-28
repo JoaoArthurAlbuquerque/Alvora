@@ -18,6 +18,7 @@ import { Button } from "../../core/ui/Button";
 import { IconBubble, type CorBubble } from "../../core/ui/IconBubble";
 import { boletimAlunoMock } from "../../mocks/data";
 import { situacaoFrequencia, FREQ_MINIMA } from "../../services/diarioStore";
+import { MEDIA_MINIMA } from "../../config/regras";
 import { cn } from "../../core/lib/utils";
 import { useAlunoDados } from "./useAlunoDados";
 import { BADGE_FREQ, semestreAtual } from "./constantes";
@@ -39,18 +40,20 @@ const coresDisc: CorBubble[] = [
   "amber",
   "rose",
 ];
+const fmtNota = (n: number) => n.toFixed(1).replace(".", ",");
 
 export const PortalAluno: React.FC = () => {
   const navigate = useNavigate();
-  const { aluno, historico, frequenciaGlobal } = useAlunoDados();
+  const { aluno, historico, frequenciaGlobal, mediaGeral } = useAlunoDados();
 
   const disciplinas = historico.map((h) => {
     const b = boletimAlunoMock.find((x) => x.id === h.disciplinaId);
+    const media = b?.mediaParcial ?? undefined;
     return {
       ...h,
-      media: b?.mediaParcial,
+      media,
       professor: b?.professorNome,
-      notaEmRisco: b?.status === "Em Risco",
+      notaEmRisco: typeof media === "number" && media < MEDIA_MINIMA,
       situacao: situacaoFrequencia(h.percentualFrequencia),
     };
   });
@@ -62,8 +65,13 @@ export const PortalAluno: React.FC = () => {
   const stats = [
     {
       label: "Média geral",
-      valor: aluno.mediaGeral.toFixed(1),
-      dica: aluno.mediaGeral >= 7 ? "Acima da média 🎯" : "Abaixo de 7,0",
+      valor: mediaGeral !== null ? mediaGeral.toFixed(1) : "—",
+      dica:
+        mediaGeral === null
+          ? "Sem notas lançadas"
+          : mediaGeral >= MEDIA_MINIMA
+            ? "Acima da média 🎯"
+            : `Abaixo de ${fmtNota(MEDIA_MINIMA)}`,
       icone: Trophy,
       cor: "violet" as CorBubble,
     },
@@ -246,7 +254,12 @@ export const PortalAluno: React.FC = () => {
                   <p className="text-[11px] font-medium text-slate-400">
                     Média
                   </p>
-                  <p className="text-xl font-extrabold text-primary tabular">
+                  <p
+                    className={cn(
+                      "text-xl font-extrabold tabular",
+                      d.notaEmRisco ? "text-rose-500" : "text-primary",
+                    )}
+                  >
                     {d.media?.toFixed(1) ?? "—"}
                   </p>
                 </div>

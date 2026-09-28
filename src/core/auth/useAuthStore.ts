@@ -14,16 +14,19 @@ interface AuthState {
 async function buscarPerfil(id: string, email: string): Promise<Usuario | null> {
   const { data: perfil, error } = await supabase
     .from("profiles")
-    .select("id, nome, sobrenome, papel, matricula")
+    .select("id, nome, sobrenome, papel")
     .eq("id", id)
     .single();
   if (error || !perfil) return null;
+
+  // Matrícula vem pela função segura (sempre do usuário logado)
+  const { data: matricula } = await supabase.rpc("minha_matricula");
 
   return {
     id: perfil.id,
     nome: [perfil.nome, perfil.sobrenome].filter(Boolean).join(" "),
     sobrenome: perfil.sobrenome ?? "",
-    matricula: perfil.matricula ?? "",
+    matricula: (matricula as string | null) ?? "",
     email,
     papel: perfil.papel,
     turmaOuCargo: "",
