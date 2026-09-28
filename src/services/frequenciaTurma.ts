@@ -9,6 +9,7 @@ import {
 import { useRegistros, contaComoPresenca, diarioStore } from "./diarioStore";
 import { useJustificativas } from "./justificativaStore";
 import { LIMITE_FALTAS_PCT } from "../config/regras";
+import { useRegras } from "./regrasService";
 import { classificar } from "./radarRisco";
 import type { RegistroPresenca } from "../types";
 
@@ -91,6 +92,8 @@ export function useFrequenciaTurma() {
   const registros = useRegistros();
   const justificativas = useJustificativas();
   const turma = useAlunosTurma();
+  // Quando o gestor muda as regras, o risco é calculado de novo
+  const regras = useRegras();
 
   return useMemo(() => {
     const alunos = calcularFrequenciaTurma(registros, justificativas, turma);
@@ -120,6 +123,7 @@ export function useFrequenciaTurma() {
       mediaFrequencia,
       diasRegistrados,
       diarioHojeSalvo,
+      limiteFaltas: regras.limiteAlertaFaltas,
     };
-  }, [registros, justificativas, turma]);
+  }, [registros, justificativas, turma, regras]);
 }

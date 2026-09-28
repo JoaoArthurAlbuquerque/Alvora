@@ -1,14 +1,16 @@
 import { useEffect, useMemo } from "react";
 import type { ResumoFrequenciaAluno } from "./frequenciaTurma";
+import type { RegraFrequencia } from "../types";
 import {
-  LIMITE_FALTAS_PCT,
+  REGRAS,
   MEDIA_MINIMA,
   MARGEM_FALTAS_PP,
   MARGEM_NOTA,
+  useRegras,
 } from "../config/regras";
 import { criarStorePersistente } from "./storePersistente";
 
-/** @deprecated use MEDIA_MINIMA de config/regras */
+/** @deprecated use REGRAS.mediaMinima (este valor não se atualiza) */
 export const NOTA_MINIMA = MEDIA_MINIMA;
 
 export type NivelRisco = "critico" | "atencao" | "ok";
@@ -41,15 +43,19 @@ export interface ItemRadar extends ResumoFrequenciaAluno {
 export function classificar(
   pctFaltas: number,
   media: number | null,
+  regras: RegraFrequencia = REGRAS,
 ): { motivo: MotivoAlerta | null; nivel: NivelRisco } {
-  const faltas = pctFaltas > LIMITE_FALTAS_PCT;
-  const nota = media !== null && media < MEDIA_MINIMA;
+  const limite = regras.limiteAlertaFaltas;
+  const minima = regras.mediaMinima;
+
+  const faltas = pctFaltas > limite;
+  const nota = media !== null && media < minima;
   const motivo: MotivoAlerta | null =
     faltas && nota ? "AMBOS" : faltas ? "FALTAS" : nota ? "NOTA" : null;
 
   const perto =
-    pctFaltas >= LIMITE_FALTAS_PCT - MARGEM_FALTAS_PP ||
-    (media !== null && media < MEDIA_MINIMA + MARGEM_NOTA);
+    pctFaltas >= limite - MARGEM_FALTAS_PP ||
+    (media !== null && media < minima + MARGEM_NOTA);
 
   const nivel: NivelRisco = motivo ? "critico" : perto ? "atencao" : "ok";
   return { motivo, nivel };
@@ -97,10 +103,7 @@ export const alertaStore = {
           proximo.push({
             ...a,
             resolvidoEm: agora,
-            historico: [
-              ...a.historico,
-              { em: agora, acao: "alerta resolvido", porId },
-            ],
+            historico: [...a.historico, { em: agora, acao: "alerta resolvido", porId }],
           });
         } else {
           proximo.push(a);
@@ -165,10 +168,7 @@ export const alertaStore = {
     alertaStore.atualizar(id, (a) => ({
       ...a,
       notificado: { aluno: true, gestor: true },
-      historico: [
-        ...a.historico,
-        { em: Date.now(), acao: "aluno notificado", porId },
-      ],
+      historico: [...a.historico, { em: Date.now(), acao: "aluno notificado", porId }],
     }));
   },
 
@@ -204,32 +204,37 @@ export function useRadarRisco(
   medias: Record<string, number | null>,
   turmaId: string,
   porId: string,
+  carregando = false,
 ) {
+  const regras = useRegras();
+
   const itens = useMemo<ItemRadar[]>(
     () =>
       alunos
         .map((a) => {
           const media = medias[a.id] ?? null;
-          return { ...a, media, ...classificar(a.percentualFaltas, media) };
+          return { ...a, media, ...classificar(a.percentualFaltas, media, regras) };
         })
         .sort(
           (x, y) =>
             PESO[x.nivel] - PESO[y.nivel] ||
             x.percentualFrequencia - y.percentualFrequencia,
         ),
-    [alunos, medias],
+    [alunos, medias, regras],
   );
 
   const alertas = useMemo(() => itens.filter((i) => i.motivo), [itens]);
   const contagem = useMemo(() => contarRisco(itens), [itens]);
 
   useEffect(() => {
+    // Evita "resolver" todos os alertas enquanto os dados ainda não chegaram
+    if (carregando || alunos.length === 0) return;
     alertaStore.sincronizar(
       turmaId,
       alertas.map((a) => ({ alunoId: a.id, motivo: a.motivo! })),
       porId,
     );
-  }, [alertas, turmaId, porId]);
+  }, [alertas, alunos.length, turmaId, porId, carregando]);
 
   return { itens, alertas, contagem };
 }

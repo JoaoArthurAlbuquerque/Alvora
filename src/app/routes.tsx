@@ -120,7 +120,14 @@ const router = createBrowserRouter([
                   "NotasProfessor",
                 ),
               },
-              ...placeholder(["turmas", "alertas", "calendario", "perfil"]),
+              {
+                path: "alertas",
+                lazy: tela(
+                  () => import("../modules/professor/AlertasProfessor"),
+                  "AlertasProfessor",
+                ),
+              },
+              ...placeholder(["turmas", "calendario", "perfil"]),
             ],
           },
           {
@@ -141,10 +148,16 @@ const router = createBrowserRouter([
                   "AdminUsuarios",
                 ),
               },
+              {
+                path: "regras",
+                lazy: tela(
+                  () => import("../modules/gestor/RegrasGestor"),
+                  "RegrasGestor",
+                ),
+              },
               ...placeholder([
                 "turmas",
                 "professores",
-                "regras",
                 "calendario",
                 "auditoria",
                 "perfil",
