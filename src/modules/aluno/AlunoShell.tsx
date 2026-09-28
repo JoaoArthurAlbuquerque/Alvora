@@ -7,9 +7,9 @@ import { IconBubble } from "../../core/ui/IconBubble";
 import { sessaoFrequenciaAtiva } from "../../mocks/data";
 import {
   chamadaStore,
-  useChamada,
   type ResultadoConfirmacao,
 } from "../../services/chamadaStore";
+import { useChamadaAtiva } from "../../services/useChamadaAtiva";
 import { FREQ_MINIMA } from "../../services/diarioStore";
 import {
   useAlertas,
@@ -25,16 +25,17 @@ const MENSAGENS_ERRO: Record<
   Exclude<ResultadoConfirmacao, "ok" | "duplicado">,
   string
 > = {
-  invalido: "PIN incorreto. Confira no data-show e tente de novo.",
+  invalido: "PIN inválido, expirado ou você não é desta turma.",
   expirado: "Essa chamada expirou. Peça um novo PIN ao professor.",
+  erro: "Falha de conexão. Tente novamente.",
 };
 
 export const AlunoShell: React.FC = () => {
   const navigate = useNavigate();
   const { aluno, historico } = useAlunoDados();
 
-  const chamada = useChamada();
-  const { expiraEm } = chamada;
+  const chamada = useChamadaAtiva();
+  const expiraEm = chamada?.expiraEm ?? null;
   const [agora, setAgora] = useState(() => Date.now());
   const chamadaAtiva = !!expiraEm && expiraEm > agora;
   const restante = expiraEm
@@ -43,12 +44,17 @@ export const AlunoShell: React.FC = () => {
 
   useEffect(() => {
     if (!expiraEm) return;
-    const t = setInterval(() => {
+    const tick = () => {
       const now = Date.now();
       setAgora(now);
       if (now >= expiraEm) clearInterval(t);
-    }, 1000);
-    return () => clearInterval(t);
+    };
+    const t = setInterval(tick, 1000);
+    const primeiro = setTimeout(tick, 0);
+    return () => {
+      clearInterval(t);
+      clearTimeout(primeiro);
+    };
   }, [expiraEm]);
 
   const [pinAberto, setPinAberto] = useState(false);
@@ -56,11 +62,16 @@ export const AlunoShell: React.FC = () => {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [msg, setMsg] = useState("");
   const [tentativa, setTentativa] = useState(0);
+  const [enviando, setEnviando] = useState(false);
 
-  const validar = (e: React.FormEvent) => {
+  const validar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const r = chamadaStore.confirmar(pin, aluno.id);
+    if (enviando) return;
+    setEnviando(true);
+    const r = await chamadaStore.confirmar(pin, aluno.id);
+    setEnviando(false);
     setAgora(Date.now());
+
     if (r === "duplicado") {
       setStatus("success");
       return setMsg("Sua presença já estava confirmada 😉");
@@ -76,9 +87,7 @@ export const AlunoShell: React.FC = () => {
       minute: "2-digit",
     });
     setStatus("success");
-    setMsg(
-      `Presença registrada às ${hora}. Ela aparece no extrato quando o professor salvar o diário.`,
-    );
+    setMsg(`Presença registrada às ${hora}.`);
   };
 
   const fecharPin = () => {
@@ -137,7 +146,7 @@ export const AlunoShell: React.FC = () => {
               Chamada ao vivo
             </p>
             <p className="text-base font-bold truncate">
-              {chamada.disciplinaNome ?? sessaoFrequenciaAtiva.disciplinaNome}
+              {chamada?.disciplinaNome ?? sessaoFrequenciaAtiva.disciplinaNome}
             </p>
           </div>
           <div
@@ -265,9 +274,9 @@ export const AlunoShell: React.FC = () => {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={pin.length !== 4}
+              disabled={pin.length !== 4 || enviando}
             >
-              Confirmar presença
+              {enviando ? "Enviando..." : "Confirmar presença"}
             </Button>
           </form>
         )}

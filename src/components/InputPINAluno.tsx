@@ -8,9 +8,10 @@ type Resultado = ResultadoConfirmacao | "nao_matriculado";
 
 const MSG: Record<Resultado, string> = {
   ok: "Presença confirmada! 🎉",
-  invalido: "PIN incorreto. Confira e tente de novo.",
+  invalido: "PIN inválido, expirado ou você não é desta turma.",
   expirado: "Nenhuma chamada ativa ou o PIN expirou.",
   duplicado: "Sua presença já foi registrada. ✅",
+  erro: "Falha de conexão. Tente novamente.",
   nao_matriculado: "Você não está matriculado nesta turma.",
 };
 
@@ -21,13 +22,16 @@ interface Props {
 
 export function InputPINAluno({ alunoId, turma }: Props) {
   const [pin, setPin] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
-  const enviar = () => {
-    if (pin.length !== 4) return;
+  const enviar = async () => {
+    if (pin.length !== 4 || enviando) return;
+    setEnviando(true);
     const r: Resultado = turma.alunosIds.includes(alunoId)
-      ? chamadaStore.confirmar(pin, alunoId)
+      ? await chamadaStore.confirmar(pin, alunoId)
       : "nao_matriculado";
+    setEnviando(false);
     const ok = r === "ok" || r === "duplicado";
     setMsg({ ok, texto: MSG[r] });
     if (ok) setPin("");
@@ -49,10 +53,10 @@ export function InputPINAluno({ alunoId, turma }: Props) {
         />
         <button
           onClick={enviar}
-          disabled={pin.length !== 4}
+          disabled={pin.length !== 4 || enviando}
           className="rounded-lg bg-indigo-600 px-4 text-white disabled:opacity-40"
         >
-          Confirmar
+          {enviando ? "..." : "Confirmar"}
         </button>
       </div>
       {msg && (

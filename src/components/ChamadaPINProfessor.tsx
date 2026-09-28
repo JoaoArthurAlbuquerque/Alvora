@@ -5,13 +5,25 @@ const DURACAO_MS = 5 * 60 * 1000;
 
 interface Props {
   turma: { id: string; alunosIds: string[] };
+  turmaDisciplinaId: string; // turma_disciplinas.id
   disciplinaNome: string;
   professorId?: string;
 }
 
-export function ChamadaPINProfessor({ turma, disciplinaNome }: Props) {
+export function ChamadaPINProfessor({
+  turma,
+  turmaDisciplinaId,
+  disciplinaNome,
+}: Props) {
   const { pin, expiraEm, presentesIds } = useChamada();
   const [agora, setAgora] = useState(() => Date.now());
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const restante = expiraEm
+    ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
+    : 0;
+  const ativa = restante > 0;
 
   useEffect(() => {
     if (!expiraEm) return;
@@ -23,25 +35,45 @@ export function ChamadaPINProfessor({ turma, disciplinaNome }: Props) {
     return () => clearInterval(t);
   }, [expiraEm]);
 
-  const restante = expiraEm
-    ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
-    : 0;
-  const ativa = restante > 0;
+  // Busca no banco quem já confirmou
+  useEffect(() => {
+    if (!ativa) return;
+    chamadaStore.atualizarPresentes();
+    const t = setInterval(() => chamadaStore.atualizarPresentes(), 3000);
+    return () => clearInterval(t);
+  }, [ativa]);
+
   const total = turma.alunosIds.length;
   const presentes = presentesIds.filter((id) =>
     turma.alunosIds.includes(id),
   ).length;
-
   const mm = String(Math.floor(restante / 60)).padStart(2, "0");
   const ss = String(restante % 60).padStart(2, "0");
 
-  const iniciar = () => {
-    setAgora(Date.now());
-    chamadaStore.iniciar(DURACAO_MS);
+  const iniciar = async () => {
+    setErro(null);
+    setCarregando(true);
+    try {
+      await chamadaStore.iniciar(DURACAO_MS, {
+        disciplinaId: turmaDisciplinaId,
+        disciplinaNome,
+      });
+      setAgora(Date.now());
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setCarregando(false);
+    }
   };
 
-  const encerrar = () => {
-    chamadaStore.encerrar();
+  const encerrar = async () => {
+    setErro(null);
+    try {
+      await chamadaStore.encerrar();
+      await chamadaStore.atualizarPresentes();
+    } catch (e) {
+      setErro((e as Error).message);
+    }
     setAgora(Date.now());
   };
 
@@ -54,11 +86,13 @@ export function ChamadaPINProfessor({ turma, disciplinaNome }: Props) {
           </p>
         )}
         <button
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-white"
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-white disabled:opacity-50"
           onClick={iniciar}
+          disabled={carregando}
         >
-          Iniciar chamada por PIN
+          {carregando ? "Abrindo..." : "Iniciar chamada por PIN"}
         </button>
+        {erro && <p className="mt-3 text-sm text-red-600">{erro}</p>}
       </div>
     );
   }
@@ -82,6 +116,7 @@ export function ChamadaPINProfessor({ turma, disciplinaNome }: Props) {
       <button className="mt-4 rounded-lg border px-4 py-2" onClick={encerrar}>
         Encerrar chamada
       </button>
+      {erro && <p className="mt-3 text-sm text-red-600">{erro}</p>}
     </div>
   );
 }

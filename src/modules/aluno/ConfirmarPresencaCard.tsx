@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { useAlunoDados } from "./useAlunoDados";
-import { registrarAlunoReal } from "../../mocks/data";
 import { REGRAS } from "../../config/regras";
 import {
   chamadaStore,
@@ -13,31 +12,27 @@ const MENSAGENS: Record<ResultadoConfirmacao, { texto: string; cor: string }> =
   {
     ok: { texto: "✓ Presença confirmada!", cor: "text-emerald-600" },
     invalido: {
-      texto: "PIN inválido. Confira no data-show.",
+      texto: "PIN inválido, expirado ou você não é desta turma.",
       cor: "text-rose-600",
     },
     expirado: { texto: "Esta chamada já expirou.", cor: "text-amber-600" },
     duplicado: { texto: "Você já confirmou presença. 😉", cor: "text-primary" },
+    erro: { texto: "Falha de conexão. Tente novamente.", cor: "text-rose-600" },
   };
 
 export const ConfirmarPresencaCard: React.FC = () => {
   const { aluno } = useAlunoDados();
   const [pin, setPin] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoConfirmacao | null>(null);
   const digitos = REGRAS.digitosPin;
 
-  // Garante que o aluno real aparece na turma do professor
-  useEffect(() => {
-    registrarAlunoReal({
-      id: aluno.id,
-      nome: aluno.nome,
-      matricula: aluno.matricula,
-    });
-  }, [aluno.id, aluno.nome, aluno.matricula]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setResultado(chamadaStore.confirmar(pin, aluno.id));
+    if (enviando) return;
+    setEnviando(true);
+    setResultado(await chamadaStore.confirmar(pin, aluno.id));
+    setEnviando(false);
     setPin("");
   };
 
@@ -57,8 +52,8 @@ export const ConfirmarPresencaCard: React.FC = () => {
           placeholder={`PIN de ${digitos} dígitos`}
           className="flex-1 px-4 py-2 rounded-xl border border-primary/20 text-center text-lg font-black tracking-widest focus:outline-none focus:border-primary"
         />
-        <Button type="submit" disabled={pin.length !== digitos}>
-          Confirmar
+        <Button type="submit" disabled={pin.length !== digitos || enviando}>
+          {enviando ? "Enviando..." : "Confirmar"}
         </Button>
       </form>
       {resultado && (
