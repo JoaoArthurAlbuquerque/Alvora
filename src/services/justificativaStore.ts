@@ -1,5 +1,6 @@
 import { criarStorePersistente } from "./storePersistente";
 import { alertaStore } from "./radarRisco";
+import { calcularPercentual } from "../utils/frequencia";
 
 export type StatusJustificativa = "pendente" | "aprovada" | "recusada";
 
@@ -101,12 +102,11 @@ export function aplicarAbonos<
     if (!abonadas) return h;
     const faltas = Math.max(0, h.faltas - abonadas);
     const presencas = h.presencas + (h.faltas - faltas);
-    const dadas = presencas + faltas;
     return {
       ...h,
       faltas,
       presencas,
-      percentualFrequencia: dadas ? Math.round((presencas / dadas) * 100) : 100,
+      percentualFrequencia: calcularPercentual(presencas, presencas + faltas),
     };
   });
 }

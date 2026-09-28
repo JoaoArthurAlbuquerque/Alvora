@@ -1,4 +1,3 @@
-// 🧹 REMOVIDOS: import do useMemo e do criarStorePersistente (ficaram sem uso)
 import {
   SessaoFrequenciaAoVivo,
   Aluno,
@@ -8,6 +7,22 @@ import {
   BoletoFinanceiro,
   DiarioDocenteStatus,
 } from "../types";
+import { calcularPercentual } from "../utils/frequencia";
+
+/** Monta um item de frequência consistente: faltas e % são calculados. */
+const freq = (
+  disciplinaId: string,
+  disciplinaNome: string,
+  totalAulas: number,
+  presencas: number,
+) => ({
+  disciplinaId,
+  disciplinaNome,
+  totalAulas,
+  presencas,
+  faltas: totalAulas - presencas,
+  percentualFrequencia: calcularPercentual(presencas, totalAulas),
+});
 
 export const sessaoFrequenciaAtiva: SessaoFrequenciaAoVivo = {
   id: "sessao-1",
@@ -28,30 +43,9 @@ export const alunoLogadoMock: Aluno = {
   curso: "Análise e Desenvolvimento de Sistemas",
   mediaGeral: 8.9,
   historicoFrequencia: [
-    {
-      disciplinaId: "1",
-      disciplinaNome: "Desenvolvimento Front-End Especializado",
-      totalAulas: 40,
-      presencas: 38,
-      faltas: 2,
-      percentualFrequencia: 95.0,
-    },
-    {
-      disciplinaId: "2",
-      disciplinaNome: "Engenharia de Software e Arquitetura",
-      totalAulas: 40,
-      presencas: 40,
-      faltas: 0,
-      percentualFrequencia: 100.0,
-    },
-    {
-      disciplinaId: "3",
-      disciplinaNome: "Sistemas Distribuídos e Cloud",
-      totalAulas: 36,
-      presencas: 28,
-      faltas: 8,
-      percentualFrequencia: 77.7,
-    },
+    freq("1", "Desenvolvimento Front-End Especializado", 40, 38),
+    freq("2", "Engenharia de Software e Arquitetura", 40, 40),
+    freq("3", "Sistemas Distribuídos e Cloud", 36, 28), // ✅ 77.8
   ],
 };
 
@@ -70,7 +64,6 @@ export const listaAlunosTurmaMock: AlunoTurma[] = [
   { id: "aluno-5", nome: "Lucas Mendonça Silva", matricula: "202410846", presente: false },
 ];
 
-// 🧹 REMOVIDOS: store alunosReais e função registrarAlunoReal.
 // Na Etapa 5, estas funções vão buscar os dados no Supabase.
 
 /** Turma completa (por enquanto, só mocks). */

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { FREQ_MINIMA } from "../config/regras";
+import { calcularPercentual } from "../utils/frequencia";
 import type { RegistroPresenca, StatusPresenca } from "../types";
 
 const KEY = "alvora:diario";
@@ -61,9 +62,7 @@ export function aplicarRegistros<T extends ItemFrequencia>(
       presencas,
       faltas,
       totalAulas,
-      percentualFrequencia: dadas
-        ? Number(((presencas / dadas) * 100).toFixed(1))
-        : 100,
+      percentualFrequencia: calcularPercentual(presencas, dadas), // ✅ sem toFixed
     };
   });
 }
