@@ -10,6 +10,3 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// TEMPORÁRIO: remover depois do teste
-(window as unknown as { supabase: typeof supabase }).supabase = supabase;
