@@ -6,8 +6,9 @@ import {
   MEDIA_MINIMA,
   MARGEM_FALTAS_PP,
   MARGEM_NOTA,
-  useRegras,
 } from "../config/regras";
+// Importar do service garante que as regras salvas já foram carregadas
+import { useRegras } from "./regrasService";
 import { criarStorePersistente } from "./storePersistente";
 
 /** @deprecated use REGRAS.mediaMinima (este valor não se atualiza) */

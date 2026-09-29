@@ -17,8 +17,8 @@ import { Badge } from "../../core/ui/Badge";
 import { Button } from "../../core/ui/Button";
 import { IconBubble, type CorBubble } from "../../core/ui/IconBubble";
 import { boletimAlunoMock } from "../../mocks/data";
-import { situacaoFrequencia, FREQ_MINIMA } from "../../services/diarioStore";
-import { MEDIA_MINIMA } from "../../config/regras";
+import { situacaoFrequencia } from "../../services/diarioStore";
+import { useRegras } from "../../services/regrasService";
 import { cn } from "../../core/lib/utils";
 import { useAlunoDados } from "./useAlunoDados";
 import { BADGE_FREQ, semestreAtual } from "./constantes";
@@ -45,6 +45,8 @@ const fmtNota = (n: number) => n.toFixed(1).replace(".", ",");
 export const PortalAluno: React.FC = () => {
   const navigate = useNavigate();
   const { aluno, historico, frequenciaGlobal, mediaGeral } = useAlunoDados();
+  const { frequenciaMinima: FREQ_MINIMA, mediaMinima: MEDIA_MINIMA } =
+    useRegras();
 
   const disciplinas = historico.map((h) => {
     const b = boletimAlunoMock.find((x) => x.id === h.disciplinaId);

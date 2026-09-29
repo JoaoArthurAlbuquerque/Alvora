@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { RotateCcw, Save } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { PageHeader } from "../../core/ui/PageHeader";
@@ -31,23 +31,39 @@ const CAMPOS: { k: CampoNum; l: string; sufixo: string; step?: number }[] = [
 const inputCls =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-ink tabular focus:outline-none focus:ring-2 focus:ring-primary/40";
 
+const iguais = (a: RegraFrequencia, b: RegraFrequencia) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
 export const RegrasGestor: React.FC = () => {
   const salvas = useRegras();
   const [form, setForm] = useState<RegraFrequencia>(salvas);
   const [msg, setMsg] = useState<string | null>(null);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [mudouFora, setMudouFora] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Quando as regras salvas mudam, o formulário é atualizado sem usar useEffect
+  // Sincroniza com as regras salvas sem apagar edições em andamento
   const [ultimasSalvas, setUltimasSalvas] = useState(salvas);
   if (ultimasSalvas !== salvas) {
+    const editando = !iguais(form, ultimasSalvas) && !iguais(form, salvas);
     setUltimasSalvas(salvas);
-    setForm(salvas);
+    if (editando) setMudouFora(true);
+    else {
+      setForm(salvas);
+      setMudouFora(false);
+    }
   }
 
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
   const erros = validarRegras(form);
-  const alterado = JSON.stringify(form) !== JSON.stringify(salvas);
+  const alterado = !iguais(form, salvas);
+
   const flash = (m: string) => {
     setMsg(m);
-    setTimeout(() => setMsg(null), 2500);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setMsg(null), 2500);
   };
 
   const setNum = (k: CampoNum, v: string) =>
@@ -58,14 +74,33 @@ export const RegrasGestor: React.FC = () => {
       pesosAvaliacoes: { ...f.pesosAvaliacoes, [k]: Number(v) },
     }));
 
-  const salvar = () => {
-    regrasService.salvar(form);
-    flash("Regras salvas ✅");
+  const executar = async (acao: () => Promise<void>, sucesso: string) => {
+    if (salvando) return;
+    setSalvando(true);
+    setErroSalvar(null);
+    try {
+      await acao();
+      setMudouFora(false);
+      flash(sucesso);
+    } catch (e) {
+      setErroSalvar((e as Error).message);
+    } finally {
+      setSalvando(false);
+    }
   };
+
+  const salvar = () =>
+    executar(() => regrasService.salvar(form), "Regras salvas ✅");
+
   const restaurar = () => {
     if (!confirm("Restaurar todas as regras para o padrão?")) return;
-    regrasService.restaurarPadrao();
-    flash("Padrão restaurado ♻️");
+    executar(() => regrasService.restaurarPadrao(), "Padrão restaurado ♻️");
+  };
+
+  const descartar = () => {
+    setForm(salvas);
+    setMudouFora(false);
+    setErroSalvar(null);
   };
 
   return (
@@ -74,6 +109,20 @@ export const RegrasGestor: React.FC = () => {
         titulo="Regras"
         descricao="Valem para todo o sistema assim que você salva"
       />
+
+      {mudouFora && (
+        <Card className="bg-amber-50 flex flex-wrap items-center gap-3">
+          <p className="text-sm text-amber-700 flex-1">
+            As regras foram alteradas em outro aparelho enquanto você editava.
+          </p>
+          <button
+            onClick={descartar}
+            className="rounded-xl px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100"
+          >
+            Carregar versão nova
+          </button>
+        </Card>
+      )}
 
       <Card className="space-y-4">
         <h3 className="font-extrabold text-ink">Frequência, notas e PIN</h3>
@@ -88,6 +137,7 @@ export const RegrasGestor: React.FC = () => {
                 step={c.step ?? 1}
                 className={inputCls}
                 value={form[c.k]}
+                disabled={salvando}
                 onChange={(e) => setNum(c.k, e.target.value)}
               />
               {form[c.k] !== REGRAS_PADRAO[c.k] && (
@@ -116,6 +166,7 @@ export const RegrasGestor: React.FC = () => {
                 step={0.1}
                 className={inputCls}
                 value={v}
+                disabled={salvando}
                 onChange={(e) => setPeso(k, e.target.value)}
               />
             </label>
@@ -123,34 +174,38 @@ export const RegrasGestor: React.FC = () => {
         </div>
       </Card>
 
-      {erros.length > 0 && (
+      {(erros.length > 0 || erroSalvar) && (
         <Card className="bg-rose-50 space-y-1">
           {erros.map((e) => (
             <p key={e} className="text-sm text-rose-700">
               • {e}
             </p>
           ))}
+          {erroSalvar && (
+            <p className="text-sm font-bold text-rose-700">⚠️ {erroSalvar}</p>
+          )}
         </Card>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={salvar}
-          disabled={!alterado || erros.length > 0}
+          disabled={!alterado || erros.length > 0 || salvando}
           className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
-          <Save size={16} /> Salvar
+          <Save size={16} /> {salvando ? "Salvando..." : "Salvar"}
         </button>
         <button
-          onClick={() => setForm(salvas)}
-          disabled={!alterado}
+          onClick={descartar}
+          disabled={!alterado || salvando}
           className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
         >
           Descartar
         </button>
         <button
           onClick={restaurar}
-          className="ml-auto inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100"
+          disabled={salvando}
+          className="ml-auto inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
         >
           <RotateCcw size={16} /> Restaurar padrão
         </button>

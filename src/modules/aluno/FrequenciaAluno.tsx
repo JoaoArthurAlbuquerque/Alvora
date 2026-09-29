@@ -14,10 +14,11 @@ import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
 import { PageHeader } from "../../core/ui/PageHeader";
 import { IconBubble } from "../../core/ui/IconBubble";
-import { situacaoFrequencia, FREQ_MINIMA } from "../../services/diarioStore";
+import { situacaoFrequencia } from "../../services/diarioStore";
 import { justificativaStore } from "../../services/justificativaStore";
 import { cn } from "../../core/lib/utils";
 import { useAlunoDados } from "./useAlunoDados";
+import { useRegras } from "../../services/regrasService";
 import {
   BADGE_FREQ,
   SELO_JUST,
@@ -45,6 +46,7 @@ export const FrequenciaAluno: React.FC = () => {
   const [erro, setErro] = useState("");
   const [arrastando, setArrastando] = useState(false);
   const hoje = new Date().toISOString().slice(0, 10);
+  const { frequenciaMinima: FREQ_MINIMA } = useRegras();
 
   const minhas = useMemo(
     () =>

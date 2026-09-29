@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { useAlunoDados } from "./useAlunoDados";
-import { REGRAS } from "../../config/regras";
+import { useRegras } from "../../services/regrasService";
 import {
   chamadaStore,
   type ResultadoConfirmacao,
@@ -22,10 +22,10 @@ const MENSAGENS: Record<ResultadoConfirmacao, { texto: string; cor: string }> =
 
 export const ConfirmarPresencaCard: React.FC = () => {
   const { aluno } = useAlunoDados();
+  const { digitosPin: digitos } = useRegras();
   const [pin, setPin] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoConfirmacao | null>(null);
-  const digitos = REGRAS.digitosPin;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

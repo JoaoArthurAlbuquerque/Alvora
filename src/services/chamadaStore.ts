@@ -64,10 +64,11 @@ function subscribe(cb: () => void) {
   return () => window.removeEventListener(EVT, cb);
 }
 
-const gerarPin = () =>
-  Math.floor(Math.random() * 10 ** REGRAS.digitosPin)
-    .toString()
-    .padStart(REGRAS.digitosPin, "0");
+/** PIN criptograficamente aleatório com o nº de dígitos das regras */
+const gerarPin = () => {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 10 ** REGRAS.digitosPin;
+  return String(n).padStart(REGRAS.digitosPin, "0");
+};
 
 /** Data de hoje no fuso de Recife, igual à checagem da função SQL. */
 const hojeRecife = () =>
@@ -75,27 +76,36 @@ const hojeRecife = () =>
 
 function mapearErro(msg: string): ResultadoConfirmacao {
   const m = msg.toLowerCase();
-  if (m.includes("pin inválido") || m.includes("expirado") || m.includes("turma"))
-    return "invalido";
+  if (m.includes("expirado")) return "expirado";
+  if (m.includes("duplicad") || m.includes("já registr")) return "duplicado";
+  if (m.includes("pin inválido") || m.includes("turma")) return "invalido";
   return "erro"; // rede, sessão, etc.
 }
 
 export const chamadaStore = {
   estado: () => cache,
 
-  /** PROFESSOR: grava o PIN em aula_pins. */
+  /** PROFESSOR: cria ou substitui o PIN do dia em aula_pins. */
   async iniciar(duracaoMs: number, info: InfoChamada) {
     const pin = gerarPin();
     const expiraEm = Date.now() + duracaoMs;
     const data = hojeRecife();
 
-    const { error } = await supabase.from("aula_pins").insert({
-      turma_disciplina_id: info.disciplinaId,
-      pin,
-      expira_em: new Date(expiraEm).toISOString(),
-      data,
-    });
+    const { error } = await supabase
+      .from("aula_pins")
+      .upsert(
+        {
+          turma_disciplina_id: info.disciplinaId,
+          data,
+          pin,
+          expira_em: new Date(expiraEm).toISOString(),
+        },
+        { onConflict: "turma_disciplina_id,data" },
+      );
     if (error) throw new Error(`Falha ao abrir chamada: ${error.message}`);
+
+    const atual = ler();
+    const mesmoDia = atual.disciplinaId === info.disciplinaId && atual.data === data;
 
     gravar({
       chamadaId: `${info.disciplinaId}-${data}-${pin}`,
@@ -104,20 +114,19 @@ export const chamadaStore = {
       pin,
       expiraEm,
       data,
-      presentesIds: [],
+      presentesIds: mesmoDia ? atual.presentesIds : [], // reabriu? mantém quem já confirmou
     });
   },
 
   /** PROFESSOR: expira o PIN no banco agora. */
   async encerrar() {
     const a = ler();
-    if (!a.disciplinaId || !a.pin || !a.expiraEm) return;
+    if (!a.disciplinaId || !a.data || !a.expiraEm) return;
 
     const { error } = await supabase
       .from("aula_pins")
       .update({ expira_em: new Date().toISOString() })
       .eq("turma_disciplina_id", a.disciplinaId)
-      .eq("pin", a.pin)
       .eq("data", a.data);
     if (error) throw new Error(`Falha ao encerrar: ${error.message}`);
 
@@ -143,7 +152,7 @@ export const chamadaStore = {
   /** ALUNO: quem valida é o banco. */
   async confirmar(pin: string, alunoId: string): Promise<ResultadoConfirmacao> {
     const limpo = pin.trim();
-    if (!/^\d+$/.test(limpo) || limpo.length !== REGRAS.digitosPin) return "invalido";
+    if (!/^\d{4,8}$/.test(limpo)) return "invalido";
 
     const { error } = await supabase.rpc("registrar_presenca", { p_pin: limpo });
     if (error) return mapearErro(error.message);

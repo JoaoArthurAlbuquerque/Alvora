@@ -15,9 +15,10 @@ import { IconBubble } from "../../core/ui/IconBubble";
 import { useAlertas, alertaAtivo } from "../../services/radarRisco";
 import { useFrequenciaTurma } from "../../services/frequenciaTurma";
 import { useJustificativas } from "../../services/justificativaStore";
-import { MEDIA_MINIMA, LIMITE_FALTAS_PCT } from "../../config/regras";
+// Importar do service garante que as regras salvas já foram carregadas
+import { useRegras } from "../../services/regrasService";
 import { cn } from "../../core/lib/utils";
-import { FREQ_MINIMA, pad } from "./constantes";
+import { pad } from "./constantes";
 import { RadarGestor } from "./RadarGestor";
 import { JustificativasGestor } from "./JustificativasGestor";
 import { AdminUsuarios } from "./AdminUsuarios";
@@ -25,6 +26,11 @@ import { AdminUsuarios } from "./AdminUsuarios";
 type Aba = "radar" | "justificativas" | "usuarios";
 
 export const PortalGestor: React.FC = () => {
+  const {
+    frequenciaMinima: FREQ_MINIMA,
+    mediaMinima: MEDIA_MINIMA,
+    limiteAlertaFaltas: limiteFaltas,
+  } = useRegras();
   const todos = useAlertas();
   const alertas = useMemo(() => todos.filter(alertaAtivo), [todos]);
   const justificativas = useJustificativas();
@@ -53,7 +59,7 @@ export const PortalGestor: React.FC = () => {
     {
       label: "Alertas",
       valor: pad(alertas.length),
-      sub: `Faltas > ${LIMITE_FALTAS_PCT}% ou média < ${MEDIA_MINIMA}`,
+      sub: `Faltas > ${limiteFaltas}% ou média < ${MEDIA_MINIMA}`,
       icone: AlertTriangle,
       cor: alertas.length ? "rose" : "emerald",
     },

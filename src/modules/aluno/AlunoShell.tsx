@@ -10,7 +10,7 @@ import {
   type ResultadoConfirmacao,
 } from "../../services/chamadaStore";
 import { useChamadaAtiva } from "../../services/useChamadaAtiva";
-import { FREQ_MINIMA } from "../../services/diarioStore";
+import { useRegras } from "../../services/regrasService";
 import {
   useAlertas,
   alertaStore,
@@ -33,6 +33,7 @@ const MENSAGENS_ERRO: Record<
 export const AlunoShell: React.FC = () => {
   const navigate = useNavigate();
   const { aluno, historico } = useAlunoDados();
+  const { frequenciaMinima: FREQ_MINIMA } = useRegras();
 
   const chamada = useChamadaAtiva();
   const expiraEm = chamada?.expiraEm ?? null;

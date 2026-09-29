@@ -6,9 +6,10 @@ import type { RegistroPresenca, StatusPresenca } from "../types";
 const KEY = "alvora:diario";
 const EVT = "alvora:diario-change";
 
-/** Tudo derivado de config/regras: mesma faixa de "atenção" do radar. */
-export { FREQ_MINIMA }; // PortalAluno continua importando daqui
-export const FREQ_ALERTA = FREQ_MINIMA + MARGEM_FALTAS_PP;
+/** Tudo derivado de config/regras (live binding): mesma faixa de "atenção" do radar. */
+export { FREQ_MINIMA };
+/** Função, não constante: sempre lê o valor atual das regras. */
+export const freqAlerta = () => FREQ_MINIMA + MARGEM_FALTAS_PP;
 
 export type SituacaoFrequencia = "segura" | "atencao" | "reprovado";
 
@@ -16,7 +17,7 @@ export type SituacaoFrequencia = "segura" | "atencao" | "reprovado";
 export const situacaoFrequencia = (percentual: number): SituacaoFrequencia =>
   percentual < FREQ_MINIMA
     ? "reprovado"
-    : percentual <= FREQ_ALERTA
+    : percentual < freqAlerta()
       ? "atencao"
       : "segura";
 

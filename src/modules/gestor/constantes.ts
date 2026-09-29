@@ -1,9 +1,7 @@
 import type { MotivoAlerta } from "../../services/radarRisco";
 import type { StatusJustificativa } from "../../services/justificativaStore";
-import { LIMITE_FALTAS_PCT } from "../../services/frequenciaTurma";
 
 export const GESTOR_ID = "gestor";
-export const FREQ_MINIMA = 100 - LIMITE_FALTAS_PCT;
 
 export type Filtro = "TODOS" | MotivoAlerta;
 export const FILTROS: Filtro[] = ["TODOS", "FALTAS", "NOTA", "AMBOS"];

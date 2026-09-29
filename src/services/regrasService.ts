@@ -1,14 +1,70 @@
-import { useSyncExternalStore } from "react";
 import type { RegraFrequencia } from "../types";
 import { gravar, ler } from "./storage";
-import { REGRAS, REGRAS_PADRAO, aplicarRegras } from "../config/regras";
+import {
+  REGRAS,
+  REGRAS_PADRAO,
+  aplicarRegras,
+  normalizarRegras,
+} from "../config/regras";
+import { supabase } from "../lib/supabase";
 
-const ouvintes = new Set<() => void>();
+const LINHA_ID = 1;
 
-// Carrega o que foi salvo assim que o módulo é importado
-aplicarRegras({ ...REGRAS_PADRAO, ...ler("regras", REGRAS_PADRAO) });
+/** Completa campos faltando com os padrões (protege contra JSON antigo/incompleto). */
+const mesclar = (r?: Partial<RegraFrequencia> | null): RegraFrequencia => ({
+  ...REGRAS_PADRAO,
+  ...(r ?? {}),
+  pesosAvaliacoes: r?.pesosAvaliacoes ?? REGRAS_PADRAO.pesosAvaliacoes,
+});
 
-const emitir = () => ouvintes.forEach((f) => f());
+/** Aplica em memória (avisa os useRegras) e atualiza o cache local. */
+function aplicarLocal(r?: Partial<RegraFrequencia> | null) {
+  const novas = normalizarRegras(mesclar(r));
+  if (JSON.stringify(novas) === JSON.stringify(REGRAS)) return; // evita re-render à toa
+  aplicarRegras(novas);
+  gravar("regras", REGRAS);
+}
+
+// 1) Início imediato com o cache local (tela não "pisca" com o padrão)
+aplicarRegras(mesclar(ler("regras", REGRAS_PADRAO)));
+
+// 2) Busca a versão oficial no banco
+async function carregarDoBanco() {
+  const { data, error } = await supabase
+    .from("regras")
+    .select("dados")
+    .eq("id", LINHA_ID)
+    .maybeSingle();
+  if (error || !data) return; // offline ou sem sessão: fica com o cache
+  aplicarLocal(data.dados as RegraFrequencia);
+}
+
+if (typeof window !== "undefined") {
+  carregarDoBanco();
+
+  // 3) Recarrega ao logar (antes do login a RLS bloqueia a leitura)
+  supabase.auth.onAuthStateChange((evento) => {
+    if (evento === "SIGNED_IN" || evento === "TOKEN_REFRESHED") carregarDoBanco();
+  });
+
+  // 4) Realtime: o gestor salvou → todos os aparelhos atualizam na hora
+  supabase
+    .channel("alvora:regras")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "regras",
+        filter: `id=eq.${LINHA_ID}`,
+      },
+      (payload) => {
+        const novo = payload.new as { dados?: RegraFrequencia } | null;
+        if (novo?.dados) aplicarLocal(novo.dados);
+      },
+    )
+    .subscribe();
+}
 
 export function validarRegras(r: RegraFrequencia): string[] {
   const erros: string[] = [];
@@ -23,20 +79,28 @@ export function validarRegras(r: RegraFrequencia): string[] {
 
 export const regrasService = {
   obter: (): RegraFrequencia => REGRAS,
-  salvar: (r: RegraFrequencia) => {
+
+  /** Salva no banco (só gestor, via RLS) e aplica localmente. */
+  salvar: async (r: RegraFrequencia): Promise<void> => {
     const erros = validarRegras(r);
     if (erros.length) throw new Error(erros.join(" "));
-    aplicarRegras(r);
-    gravar("regras", REGRAS);
-    emitir();
+
+    const dados = normalizarRegras(r);
+    const { error } = await supabase.from("regras").upsert({
+      id: LINHA_ID,
+      dados,
+      atualizado_em: new Date().toISOString(),
+    });
+    if (error) throw new Error(`Falha ao salvar regras: ${error.message}`);
+
+    aplicarLocal(dados);
   },
+
   restaurarPadrao: () => regrasService.salvar(REGRAS_PADRAO),
-  assinar: (f: () => void) => {
-    ouvintes.add(f);
-    return () => ouvintes.delete(f);
-  },
+
+  /** Força uma nova leitura do banco (ex.: botão "sincronizar"). */
+  recarregar: carregarDoBanco,
 };
 
-/** Faz a tela renderizar de novo quando as regras mudam */
-export const useRegras = () =>
-  useSyncExternalStore(regrasService.assinar, regrasService.obter);
+/** Fonte única do hook */
+export { useRegras } from "../config/regras";

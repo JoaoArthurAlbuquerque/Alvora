@@ -3,31 +3,50 @@ import { Radio, KeyRound, Save, Users, X, Zap } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
-import { useAlunosTurma, sessaoFrequenciaAtiva } from "../../mocks/data";
+import { sessaoFrequenciaAtiva } from "../../mocks/data";
+import { useAlunosTurma } from "../../services/alunosTurma";
 import { chamadaStore, useChamada } from "../../services/chamadaStore";
 import {
   diarioStore,
   useRegistros,
   contaComoPresenca,
 } from "../../services/diarioStore";
-import { TURMA_ID, DISCIPLINA_ID } from "../../services/frequenciaTurma";
-import { REGRAS } from "../../config/regras";
+import {
+  TURMA_ID,
+  DISCIPLINA_ID,
+  TURMA_DISCIPLINA_ID,
+  ehUuid,
+  turmaConsulta,
+} from "../../services/frequenciaTurma";
+import { useRegras } from "../../services/regrasService";
 import type { StatusPresenca } from "../../types";
 import { cn } from "../../core/lib/utils";
 import { PROXIMO, VISUAL, formatarTempo, hoje, iniciais } from "./constantes";
 
-const DURACAO_MS = REGRAS.validadePinMinutos * 60 * 1000;
+interface Props {
+  /** turma_disciplinas.id (UUID). Se não vier, usa VITE_TURMA_DISCIPLINA_ID. */
+  turmaDisciplinaId?: string;
+  disciplinaNome?: string;
+}
 
-export const LancamentoFrequencia: React.FC = () => {
+export const LancamentoFrequencia: React.FC<Props> = ({
+  turmaDisciplinaId = TURMA_DISCIPLINA_ID,
+  disciplinaNome = sessaoFrequenciaAtiva.disciplinaNome,
+}) => {
+  const { validadePinMinutos, digitosPin } = useRegras();
+  // Calculado aqui dentro para acompanhar as mudanças que o gestor fizer
+  const duracaoMs = validadePinMinutos * 60 * 1000;
+
   const { chamadaId, pin, expiraEm, presentesIds } = useChamada();
   const registros = useRegistros();
-  const turma = useAlunosTurma();
+  const turma = useAlunosTurma(turmaConsulta());
   const [ajustesManuais, setAjustesManuais] = useState<
     Record<string, StatusPresenca>
   >({});
   const [isModalPinOpen, setIsModalPinOpen] = useState(false);
   const [agora, setAgora] = useState(() => Date.now());
   const [toast, setToast] = useState<string | null>(null);
+  const [abrindo, setAbrindo] = useState(false);
 
   const tempoRestante = expiraEm
     ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
@@ -66,6 +85,7 @@ export const LancamentoFrequencia: React.FC = () => {
   ).length;
   const pct = alunos.length ? (totalPresentes / alunos.length) * 100 : 0;
 
+  // Cronômetro
   useEffect(() => {
     if (!expiraEm) return;
     const timer = setInterval(() => {
@@ -76,26 +96,52 @@ export const LancamentoFrequencia: React.FC = () => {
     return () => clearInterval(timer);
   }, [expiraEm]);
 
+  // Busca no banco quem já confirmou via PIN
+  useEffect(() => {
+    if (!chamadaAtiva) return;
+    chamadaStore.atualizarPresentes();
+    const t = setInterval(() => chamadaStore.atualizarPresentes(), 3000);
+    return () => clearInterval(t);
+  }, [chamadaAtiva]);
+
+  // Toast some sozinho
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const handleGerarPin = () => {
+  const handleGerarPin = async () => {
     if (!chamadaAtiva) {
-      setAgora(Date.now());
-      setAjustesManuais({});
-      chamadaStore.iniciar(DURACAO_MS, {
-        disciplinaId: DISCIPLINA_ID,
-        disciplinaNome: sessaoFrequenciaAtiva.disciplinaNome,
-      });
+      if (!ehUuid(turmaDisciplinaId)) {
+        setToast("Configure VITE_TURMA_DISCIPLINA_ID com um UUID válido ⚠️");
+        return;
+      }
+      setAbrindo(true);
+      try {
+        setAjustesManuais({});
+        await chamadaStore.iniciar(duracaoMs, {
+          disciplinaId: turmaDisciplinaId,
+          disciplinaNome,
+        });
+        setAgora(Date.now());
+      } catch (e) {
+        setToast((e as Error).message);
+        return;
+      } finally {
+        setAbrindo(false);
+      }
     }
     setIsModalPinOpen(true);
   };
 
-  const handleEncerrar = () => {
-    chamadaStore.encerrar();
+  const handleEncerrar = async () => {
+    try {
+      await chamadaStore.encerrar();
+      await chamadaStore.atualizarPresentes();
+    } catch (e) {
+      setToast((e as Error).message);
+    }
     setAgora(Date.now());
     setIsModalPinOpen(false);
   };
@@ -103,9 +149,13 @@ export const LancamentoFrequencia: React.FC = () => {
   const alternarStatus = (id: string, atual: StatusPresenca) =>
     setAjustesManuais((prev) => ({ ...prev, [id]: PROXIMO[atual] }));
 
-  const handleSalvarDiario = () => {
+  const handleSalvarDiario = async () => {
     if (chamadaAtiva) {
-      chamadaStore.encerrar();
+      try {
+        await chamadaStore.encerrar();
+      } catch {
+        /* segue salvando localmente */
+      }
       setAgora(Date.now());
     }
     const statusPorAluno: Record<string, StatusPresenca> = {};
@@ -127,7 +177,7 @@ export const LancamentoFrequencia: React.FC = () => {
 
   const r = 34,
     c = 2 * Math.PI * r;
-  const digitos = (pin ?? "-".repeat(REGRAS.digitosPin)).split("");
+  const digitos = (pin ?? "-".repeat(digitosPin)).split("");
   const urgente = chamadaAtiva && tempoRestante <= 30;
 
   return (
@@ -210,7 +260,7 @@ export const LancamentoFrequencia: React.FC = () => {
               !chamadaAtiva && "text-ink",
             )}
           >
-            {sessaoFrequenciaAtiva.disciplinaNome}
+            {disciplinaNome}
           </h2>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <span
@@ -240,12 +290,13 @@ export const LancamentoFrequencia: React.FC = () => {
           <Button
             icon={<KeyRound size={16} />}
             onClick={handleGerarPin}
+            disabled={abrindo}
             className={cn(
               chamadaAtiva &&
                 "bg-white text-primary! hover:bg-white hover:-translate-y-0.5 shadow-lg",
             )}
           >
-            {chamadaAtiva ? "Exibir PIN" : "Gerar PIN"}
+            {abrindo ? "Abrindo..." : chamadaAtiva ? "Exibir PIN" : "Gerar PIN"}
           </Button>
           <Button
             variant="outline"
@@ -278,55 +329,61 @@ export const LancamentoFrequencia: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 stagger">
-          {alunos.map((a) => {
-            const v = VISUAL[a.status];
-            return (
-              <div
-                key={a.id}
-                className="group flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-primary/5 transition-colors"
-              >
-                <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-brand text-white text-xs font-bold flex items-center justify-center">
-                    {iniciais(a.nome)}
-                  </div>
-                  {a.viaPin && (
-                    <span
-                      className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white shadow flex items-center justify-center animate-pop"
-                      title="Confirmou via PIN"
-                    >
-                      <Zap size={11} className="text-primary fill-primary" />
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-ink truncate">
-                    {a.nome}
-                  </p>
-                  <p className="text-[11px] text-slate-400 tabular">
-                    Mat. {a.matricula}
+        {alunos.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-6">
+            Carregando alunos... ⏳
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 stagger">
+            {alunos.map((a) => {
+              const v = VISUAL[a.status];
+              return (
+                <div
+                  key={a.id}
+                  className="group flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-primary/5 transition-colors"
+                >
+                  <div className="relative shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-brand text-white text-xs font-bold flex items-center justify-center">
+                      {iniciais(a.nome)}
+                    </div>
                     {a.viaPin && (
-                      <span className="text-primary font-semibold">
-                        {" "}
-                        · via PIN
+                      <span
+                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white shadow flex items-center justify-center animate-pop"
+                        title="Confirmou via PIN"
+                      >
+                        <Zap size={11} className="text-primary fill-primary" />
                       </span>
                     )}
-                  </p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-ink truncate">
+                      {a.nome}
+                    </p>
+                    <p className="text-[11px] text-slate-400 tabular">
+                      Mat. {a.matricula}
+                      {a.viaPin && (
+                        <span className="text-primary font-semibold">
+                          {" "}
+                          · via PIN
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    key={a.status}
+                    onClick={() => alternarStatus(a.id, a.status)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3.5 h-9 rounded-full text-xs font-bold transition-transform hover:scale-105 active:scale-95 animate-pop",
+                      v.cls,
+                    )}
+                  >
+                    <span>{v.icone}</span> {v.label}
+                  </button>
                 </div>
-                <button
-                  key={a.status}
-                  onClick={() => alternarStatus(a.id, a.status)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3.5 h-9 rounded-full text-xs font-bold transition-transform hover:scale-105 active:scale-95 animate-pop",
-                    v.cls,
-                  )}
-                >
-                  <span>{v.icone}</span> {v.label}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       {/* Toast */}

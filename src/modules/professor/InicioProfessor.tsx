@@ -11,14 +11,10 @@ import {
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { IconBubble } from "../../core/ui/IconBubble";
-import {
-  useFrequenciaTurma,
-  LIMITE_FALTAS_PCT,
-  TURMA_ID,
-} from "../../services/frequenciaTurma";
+import { useFrequenciaTurma, TURMA_ID } from "../../services/frequenciaTurma";
 import { useRadarRisco } from "../../services/radarRisco";
 import { useMediasTurma } from "../../services/notas";
-import { FREQ_MINIMA, MEDIA_MINIMA } from "../../config/regras";
+import { useRegras } from "../../services/regrasService";
 import type { TabProfessor } from "../../types";
 import { cn } from "../../core/lib/utils";
 import { ESTILO_RISCO, PROFESSOR_ID, pad, iniciais } from "./constantes";
@@ -26,8 +22,15 @@ import { ESTILO_RISCO, PROFESSOR_ID, pad, iniciais } from "./constantes";
 export const InicioProfessor: React.FC<{
   onNavegar: (t: TabProfessor) => void;
 }> = ({ onNavegar }) => {
-  const { alunos, mediaFrequencia, diasRegistrados, diarioHojeSalvo } =
-    useFrequenciaTurma();
+  const { frequenciaMinima: FREQ_MINIMA, mediaMinima: MEDIA_MINIMA } =
+    useRegras();
+  const {
+    alunos,
+    mediaFrequencia,
+    diasRegistrados,
+    diarioHojeSalvo,
+    limiteFaltas,
+  } = useFrequenciaTurma();
   const medias = useMediasTurma(alunos);
   const { itens: radar, contagem } = useRadarRisco(
     alunos,
@@ -37,12 +40,13 @@ export const InicioProfessor: React.FC<{
   );
   const freqOk = mediaFrequencia >= FREQ_MINIMA;
   const turmaTranquila = contagem.alertas === 0 && contagem.atencao === 0;
+  const criterio = `faltas > ${limiteFaltas}% ou média < ${MEDIA_MINIMA}`;
 
   const kpis = [
     {
       label: "Frequência média",
       valor: `${mediaFrequencia}%`,
-      sub: `${diasRegistrados} diário(s) lançado(s)`,
+      sub: `${diasRegistrados} diário(s) lançado(s) · mínimo ${FREQ_MINIMA}%`,
       icone: Activity,
       cor: freqOk ? "emerald" : "rose",
     },
@@ -57,8 +61,8 @@ export const InicioProfessor: React.FC<{
       label: "Alertas",
       valor: pad(contagem.alertas),
       sub: contagem.atencao
-        ? `+${contagem.atencao} em atenção · faltas > ${LIMITE_FALTAS_PCT}% ou média < ${MEDIA_MINIMA}`
-        : `Faltas > ${LIMITE_FALTAS_PCT}% ou média < ${MEDIA_MINIMA}`,
+        ? `+${contagem.atencao} em atenção · ${criterio}`
+        : criterio.charAt(0).toUpperCase() + criterio.slice(1),
       icone: AlertTriangle,
       cor: contagem.alertas ? "rose" : contagem.atencao ? "amber" : "emerald",
     },

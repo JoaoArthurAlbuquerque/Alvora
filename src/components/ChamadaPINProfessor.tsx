@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { chamadaStore, useChamada } from "../services/chamadaStore";
-
-const DURACAO_MS = 5 * 60 * 1000;
+import { useRegras } from "../config/regras";
 
 interface Props {
   turma: { id: string; alunosIds: string[] };
@@ -15,25 +14,28 @@ export function ChamadaPINProfessor({
   turmaDisciplinaId,
   disciplinaNome,
 }: Props) {
-  const { pin, expiraEm, presentesIds } = useChamada();
+  const { pin, expiraEm, presentesIds, disciplinaId } = useChamada();
+  const regras = useRegras(); // re-renderiza se o gestor mudar as regras
   const [agora, setAgora] = useState(() => Date.now());
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const restante = expiraEm
-    ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
-    : 0;
+  // Só considera a chamada desta disciplina
+  const minha = disciplinaId === turmaDisciplinaId;
+  const restante =
+    minha && expiraEm ? Math.max(0, Math.ceil((expiraEm - agora) / 1000)) : 0;
   const ativa = restante > 0;
 
+  // Cronômetro
   useEffect(() => {
-    if (!expiraEm) return;
+    if (!minha || !expiraEm) return;
     const t = setInterval(() => {
       const now = Date.now();
       setAgora(now);
       if (now >= expiraEm) clearInterval(t);
     }, 1000);
     return () => clearInterval(t);
-  }, [expiraEm]);
+  }, [expiraEm, minha]);
 
   // Busca no banco quem já confirmou
   useEffect(() => {
@@ -44,9 +46,9 @@ export function ChamadaPINProfessor({
   }, [ativa]);
 
   const total = turma.alunosIds.length;
-  const presentes = presentesIds.filter((id) =>
-    turma.alunosIds.includes(id),
-  ).length;
+  const presentes = minha
+    ? presentesIds.filter((id) => turma.alunosIds.includes(id)).length
+    : 0;
   const mm = String(Math.floor(restante / 60)).padStart(2, "0");
   const ss = String(restante % 60).padStart(2, "0");
 
@@ -54,7 +56,7 @@ export function ChamadaPINProfessor({
     setErro(null);
     setCarregando(true);
     try {
-      await chamadaStore.iniciar(DURACAO_MS, {
+      await chamadaStore.iniciar(regras.validadePinMinutos * 60_000, {
         disciplinaId: turmaDisciplinaId,
         disciplinaNome,
       });
@@ -80,7 +82,7 @@ export function ChamadaPINProfessor({
   if (!ativa) {
     return (
       <div className="rounded-xl border p-6 text-center">
-        {expiraEm && (
+        {minha && expiraEm && (
           <p className="mb-3 text-sm text-gray-600">
             Última chamada: {presentes}/{total} presentes
           </p>
@@ -90,8 +92,16 @@ export function ChamadaPINProfessor({
           onClick={iniciar}
           disabled={carregando}
         >
-          {carregando ? "Abrindo..." : "Iniciar chamada por PIN"}
+          {carregando
+            ? "Abrindo..."
+            : minha && expiraEm
+              ? "Reabrir chamada por PIN"
+              : "Iniciar chamada por PIN"}
         </button>
+        <p className="mt-2 text-xs text-gray-400">
+          PIN de {regras.digitosPin} dígitos · válido por{" "}
+          {regras.validadePinMinutos} min
+        </p>
         {erro && <p className="mt-3 text-sm text-red-600">{erro}</p>}
       </div>
     );

@@ -1,21 +1,46 @@
 import { useMemo } from "react";
 import {
-  listarAlunosTurma,
-  useAlunosTurma,
   historicoBase,
   sessaoFrequenciaAtiva,
   type AlunoTurma,
 } from "../mocks/data";
+import { listarAlunosTurma, useAlunosTurma } from "./alunosTurma";
 import { useRegistros, contaComoPresenca, diarioStore } from "./diarioStore";
 import { useJustificativas } from "./justificativaStore";
-import { LIMITE_FALTAS_PCT } from "../config/regras";
+import { LIMITE_FALTAS_PCT, REGRAS } from "../config/regras";
 import { useRegras } from "./regrasService";
 import { classificar } from "./radarRisco";
-import type { RegistroPresenca } from "../types";
+import type { RegistroPresenca, RegraFrequencia } from "../types";
 
 export const TURMA_ID = "turma-a";
+
+/** UUID real da turma no Supabase (opcional). Sem ele, lista todos os perfis com role "aluno". */
+export const TURMA_UUID: string = import.meta.env.VITE_TURMA_ID ?? "";
+
+/** ID do mock: usado só no diário/histórico local (localStorage). */
 export const DISCIPLINA_ID = sessaoFrequenciaAtiva.disciplinaId;
-export { LIMITE_FALTAS_PCT }; // PortalProfessor e PortalGestor importam daqui
+
+/** UUID real de turma_disciplinas.id: usado na chamada por PIN (Supabase). */
+export const TURMA_DISCIPLINA_ID: string =
+  import.meta.env.VITE_TURMA_DISCIPLINA_ID ?? "";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Diz se o valor é um UUID válido (evita "invalid input syntax for type uuid"). */
+export const ehUuid = (v: string | null | undefined): v is string =>
+  !!v && UUID_RE.test(v);
+
+/** Turma a consultar no banco (undefined = todos os alunos). */
+export const turmaConsulta = (): string | undefined =>
+  ehUuid(TURMA_UUID) ? TURMA_UUID : undefined;
+
+/**
+ * @deprecated Valor estático: ignora mudanças do gestor.
+ * Use `limiteFaltas` retornado por `useFrequenciaTurma()`.
+ * Mantido só até migrar PortalProfessor e PortalGestor.
+ */
+export { LIMITE_FALTAS_PCT };
 
 type Justificativa = ReturnType<typeof useJustificativas>[number];
 
@@ -50,6 +75,7 @@ export function calcularFrequenciaTurma(
   registros: RegistroPresenca[],
   justificativas: Justificativa[] = [],
   turma: AlunoTurma[] = listarAlunosTurma(),
+  regras: RegraFrequencia = REGRAS,
 ): ResumoFrequenciaAluno[] {
   return turma.map((a) => {
     const base = historicoBase(a.id);
@@ -83,7 +109,7 @@ export function calcularFrequenciaTurma(
       faltasAbonadas,
       percentualFrequencia: Number((100 - percentualFaltas).toFixed(1)),
       percentualFaltas,
-      emRisco: classificar(percentualFaltas, null).motivo !== null,
+      emRisco: classificar(percentualFaltas, null, regras).motivo !== null,
     };
   });
 }
@@ -91,12 +117,17 @@ export function calcularFrequenciaTurma(
 export function useFrequenciaTurma() {
   const registros = useRegistros();
   const justificativas = useJustificativas();
-  const turma = useAlunosTurma();
+  const turma = useAlunosTurma(turmaConsulta());
   // Quando o gestor muda as regras, o risco é calculado de novo
   const regras = useRegras();
 
   return useMemo(() => {
-    const alunos = calcularFrequenciaTurma(registros, justificativas, turma);
+    const alunos = calcularFrequenciaTurma(
+      registros,
+      justificativas,
+      turma,
+      regras,
+    );
     const emRisco = alunos
       .filter((a) => a.emRisco)
       .sort((x, y) => y.percentualFaltas - x.percentualFaltas);

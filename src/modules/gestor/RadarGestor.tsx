@@ -18,10 +18,10 @@ import {
   alertaAtivo,
 } from "../../services/radarRisco";
 import { useFrequenciaTurma } from "../../services/frequenciaTurma";
+import { useRegras } from "../../services/regrasService";
 import { cn } from "../../core/lib/utils";
 import {
   FILTROS,
-  FREQ_MINIMA,
   GESTOR_ID,
   SELO_MOTIVO,
   fmt,
@@ -31,6 +31,7 @@ import {
 import { ModalTexto } from "./ModalTexto";
 
 export const RadarGestor: React.FC = () => {
+  const { frequenciaMinima: FREQ_MINIMA } = useRegras();
   const todos = useAlertas();
   const alertas = useMemo(() => todos.filter(alertaAtivo), [todos]);
   const { alunos } = useFrequenciaTurma();
@@ -171,7 +172,9 @@ export const RadarGestor: React.FC = () => {
                       <span className="text-slate-400">
                         {aluno.faltas}/{aluno.totalAulas} faltas
                       </span>
-                      <b className={aluno.emRisco ? "text-rose-600" : "text-ink"}>
+                      <b
+                        className={aluno.emRisco ? "text-rose-600" : "text-ink"}
+                      >
                         {aluno.percentualFrequencia}%
                       </b>
                     </div>
