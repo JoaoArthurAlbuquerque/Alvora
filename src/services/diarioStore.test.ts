@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RegistroPresenca, StatusPresenca } from "../types";
 import {
@@ -6,7 +7,7 @@ import {
   diarioStore,
   situacaoFrequencia,
   FREQ_MINIMA,
-  FREQ_ALERTA,
+  freqAlerta,
 } from "./diarioStore";
 
 const FALTA = "FALTA" as StatusPresenca; // ajuste se o seu status de falta tiver outro nome
@@ -131,11 +132,11 @@ describe("situacaoFrequencia", () => {
 
   it("entre mínimo e alerta é atenção", () => {
     expect(situacaoFrequencia(FREQ_MINIMA)).toBe("atencao");
-    expect(situacaoFrequencia(FREQ_ALERTA - 0.1)).toBe("atencao");
+    expect(situacaoFrequencia(freqAlerta() - 0.1)).toBe("atencao");
   });
 
   it("a partir do alerta é segura", () => {
-    expect(situacaoFrequencia(FREQ_ALERTA)).toBe("segura");
+    expect(situacaoFrequencia(freqAlerta())).toBe("segura");
     expect(situacaoFrequencia(100)).toBe("segura");
   });
 });
