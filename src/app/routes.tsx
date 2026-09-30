@@ -8,7 +8,6 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "./Applayout";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { LoginPage } from "../modules/autenticacao/LoginPage";
-import { EmConstrucao } from "../core/ui/EmConstrucao";
 import { useAuthStore } from "../core/auth/useAuthStore";
 
 function RedirecionarPorPapel() {
@@ -32,8 +31,22 @@ const tela =
   ) =>
   async () => ({ Component: (await importar())[nome] });
 
-const placeholder = (paths: string[]) =>
-  paths.map((path) => ({ path, element: <EmConstrucao /> }));
+/** Rotas compartilhadas pelos perfis */
+const rotaCalendario = () => ({
+  path: "calendario",
+  lazy: tela(
+    () => import("../modules/calendario/CalendarioPage"),
+    "CalendarioPage",
+  ),
+});
+const rotaPerfil = () => ({
+  path: "perfil",
+  lazy: tela(() => import("../modules/perfil/PerfilPage"), "PerfilPage"),
+});
+const rotaTurmas = () => ({
+  path: "turmas",
+  lazy: tela(() => import("../modules/turmas/TurmasPage"), "TurmasPage"),
+});
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -90,7 +103,8 @@ const router = createBrowserRouter([
                       "SecretariaAluno",
                     ),
                   },
-                  ...placeholder(["calendario", "perfil"]),
+                  rotaCalendario(),
+                  rotaPerfil(),
                 ],
               },
             ],
@@ -127,7 +141,9 @@ const router = createBrowserRouter([
                   "AlertasProfessor",
                 ),
               },
-              ...placeholder(["turmas", "calendario", "perfil"]),
+              rotaTurmas(),
+              rotaCalendario(),
+              rotaPerfil(),
             ],
           },
           {
@@ -155,13 +171,23 @@ const router = createBrowserRouter([
                   "RegrasGestor",
                 ),
               },
-              ...placeholder([
-                "turmas",
-                "professores",
-                "calendario",
-                "auditoria",
-                "perfil",
-              ]),
+              {
+                path: "professores",
+                lazy: tela(
+                  () => import("../modules/gestor/ProfessoresGestor"),
+                  "ProfessoresGestor",
+                ),
+              },
+              {
+                path: "auditoria",
+                lazy: tela(
+                  () => import("../modules/gestor/AuditoriaGestor"),
+                  "AuditoriaGestor",
+                ),
+              },
+              rotaTurmas(),
+              rotaCalendario(),
+              rotaPerfil(),
             ],
           },
         ],
