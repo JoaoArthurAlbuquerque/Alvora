@@ -93,11 +93,6 @@ export const AppLayout: React.FC = () => {
   const ferramentas = [
     { label: "Assistente IA", icone: Sparkles, onClick: abrir("ia") },
     { label: "Calendário", icone: CalendarDays, onClick: abrir("calendario") },
-    {
-      label: "Central de Dúvidas",
-      icone: CircleHelp,
-      onClick: abrir("duvidas"),
-    },
   ];
 
   const sidebar = (
