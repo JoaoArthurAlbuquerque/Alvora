@@ -11,6 +11,18 @@ interface AuthState {
   validarSessao: () => Promise<boolean>;
 }
 
+/** Usa o mesmo tipo de `Usuario.papel` (PapelUsuario), sem duplicar a definição */
+type Papel = Usuario["papel"];
+
+const PAPEIS_VALIDOS: readonly string[] = ["aluno", "professor", "gestor", "admin"];
+
+/** Converte a string do banco em PapelUsuario. Valor desconhecido vira "aluno" (menor privilégio). */
+function toPapel(valor: unknown): Papel {
+  return (
+    typeof valor === "string" && PAPEIS_VALIDOS.includes(valor) ? valor : "aluno"
+  ) as Papel;
+}
+
 async function buscarPerfil(id: string, email: string): Promise<Usuario | null> {
   const { data: perfil, error } = await supabase
     .from("profiles")
@@ -28,7 +40,7 @@ async function buscarPerfil(id: string, email: string): Promise<Usuario | null> 
     sobrenome: perfil.sobrenome ?? "",
     matricula: (matricula as string | null) ?? "",
     email,
-    papel: perfil.papel,
+    papel: toPapel(perfil.papel),
     turmaOuCargo: "",
     turmasIds: [],
   };
