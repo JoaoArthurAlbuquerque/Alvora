@@ -1,3 +1,4 @@
+// src/services/regrasService.ts
 import type { RegraFrequencia } from "../types";
 import { gravar, ler } from "./storage";
 import {
@@ -7,6 +8,7 @@ import {
   normalizarRegras,
 } from "../config/regras";
 import { supabase } from "../lib/supabase";
+import type { Json } from "../types/database";
 
 const LINHA_ID = 1;
 
@@ -36,34 +38,68 @@ async function carregarDoBanco() {
     .eq("id", LINHA_ID)
     .maybeSingle();
   if (error || !data) return; // offline ou sem sessão: fica com o cache
-  aplicarLocal(data.dados as RegraFrequencia);
+  aplicarLocal(data.dados as Partial<RegraFrequencia>);
 }
 
 if (typeof window !== "undefined") {
   carregarDoBanco();
 
-  // 3) Recarrega ao logar (antes do login a RLS bloqueia a leitura)
-  supabase.auth.onAuthStateChange((evento) => {
-    if (evento === "SIGNED_IN" || evento === "TOKEN_REFRESHED") carregarDoBanco();
+  let canal: ReturnType<typeof supabase.channel> | null = null;
+
+  // 3) Realtime: (re)cria o canal com o token do usuário logado
+  function iniciarCanal() {
+    if (canal) supabase.removeChannel(canal);
+    canal = supabase
+      .channel("alvora:regras")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "regras",
+          filter: `id=eq.${LINHA_ID}`,
+        },
+        (payload) => {
+          const novo = payload.new as { dados?: Partial<RegraFrequencia> } | null;
+          if (novo?.dados) aplicarLocal(novo.dados);
+        },
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[regras] realtime:", status); // só avisa se der problema
+        }
+      });
+  }
+
+  iniciarCanal();
+
+  let usuarioAtual: string | null = null;
+
+  // 4) Login/logout: atualiza token do Realtime e só recria o canal se o usuário mudar
+  //    (o Supabase dispara SIGNED_IN de novo quando a aba volta ao foco)
+  const { data: auth } = supabase.auth.onAuthStateChange((evento, sessao) => {
+    if (evento === "SIGNED_IN" || evento === "TOKEN_REFRESHED") {
+      supabase.realtime.setAuth(sessao?.access_token ?? null);
+
+      const id = sessao?.user?.id ?? null;
+      if (id !== usuarioAtual) {
+        usuarioAtual = id;
+        carregarDoBanco();
+        iniciarCanal();
+      }
+    }
+    if (evento === "SIGNED_OUT") {
+      usuarioAtual = null;
+      aplicarRegras(normalizarRegras(REGRAS_PADRAO));
+      gravar("regras", REGRAS_PADRAO);
+    }
   });
 
-  // 4) Realtime: o gestor salvou → todos os aparelhos atualizam na hora
-  supabase
-    .channel("alvora:regras")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "regras",
-        filter: `id=eq.${LINHA_ID}`,
-      },
-      (payload) => {
-        const novo = payload.new as { dados?: RegraFrequencia } | null;
-        if (novo?.dados) aplicarLocal(novo.dados);
-      },
-    )
-    .subscribe();
+  // 5) HMR do Vite: evita canais e listeners duplicados
+  import.meta.hot?.dispose(() => {
+    if (canal) supabase.removeChannel(canal);
+    auth.subscription.unsubscribe();
+  });
 }
 
 export function validarRegras(r: RegraFrequencia): string[] {
@@ -82,13 +118,13 @@ export const regrasService = {
 
   /** Salva no banco (só gestor, via RLS) e aplica localmente. */
   salvar: async (r: RegraFrequencia): Promise<void> => {
-    const erros = validarRegras(r);
+    const dados = normalizarRegras(r);
+    const erros = validarRegras(dados);
     if (erros.length) throw new Error(erros.join(" "));
 
-    const dados = normalizarRegras(r);
     const { error } = await supabase.from("regras").upsert({
       id: LINHA_ID,
-      dados,
+      dados: dados as unknown as Json,
       atualizado_em: new Date().toISOString(),
     });
     if (error) throw new Error(`Falha ao salvar regras: ${error.message}`);

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import type { Database, Json } from "@/types/database";
 import { ok, useRealtime } from "./realtime";
 import { normalizarRegras, REGRAS_PADRAO } from "@/config/regras";
 import type { RegraFrequencia } from "@/types";
@@ -7,7 +9,12 @@ import type { RegraFrequencia } from "@/types";
 export type Linha = Record<string, unknown>;
 
 /** Fábrica genérica: listar + salvar + excluir com realtime */
-function crud<T extends Linha = Linha>(tabela: string, ordem = "created_at", asc = false) {
+type TableName = keyof Database["public"]["Tables"];
+
+/** Cliente sem tipos só para a fábrica genérica (evita "Type instantiation is excessively deep") */
+const db = supabase as unknown as SupabaseClient;
+
+function crud<T extends Linha = Linha>(tabela: TableName, ordem = "created_at", asc = false) {
   const K = [tabela];
 
   return {
@@ -16,7 +23,7 @@ function crud<T extends Linha = Linha>(tabela: string, ordem = "created_at", asc
       return useQuery({
         queryKey: [...K, filtro],
         queryFn: async (): Promise<T[]> => {
-          let q = supabase.from(tabela).select("*").order(ordem, { ascending: asc });
+          let q = db.from(tabela).select("*").order(ordem, { ascending: asc });
           Object.entries(filtro ?? {}).forEach(([c, v]) => {
             q = q.eq(c, v);
           });
@@ -30,7 +37,7 @@ function crud<T extends Linha = Linha>(tabela: string, ordem = "created_at", asc
       return useMutation({
         mutationFn: async (v: Partial<T> | Partial<T>[]): Promise<T[]> =>
           ok(
-            await supabase
+            await db
               .from(tabela)
               .upsert(v as Linha | Linha[], onConflict ? { onConflict } : undefined)
               .select(),
@@ -43,7 +50,7 @@ function crud<T extends Linha = Linha>(tabela: string, ordem = "created_at", asc
       const qc = useQueryClient();
       return useMutation({
         mutationFn: async (id: string) =>
-          ok(await supabase.from(tabela).delete().eq("id", id)),
+          ok(await db.from(tabela).delete().eq("id", id)),
         onSuccess: () => qc.invalidateQueries({ queryKey: K }),
       });
     },
@@ -136,7 +143,7 @@ export function useSalvarRegras() {
       ok(
         await supabase.from("regras").upsert({
           id: 1,
-          dados: normalizarRegras(r),
+          dados: normalizarRegras(r) as unknown as Json,
           atualizado_em: new Date().toISOString(),
         }),
       ),
