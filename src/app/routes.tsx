@@ -88,6 +88,18 @@ const tela =
   ) =>
   async () => ({ Component: (await importar())[nome] });
 
+/** Rotas públicas (funcionam com ou sem login) */
+const rotaPublica = <K extends string>(
+  path: string,
+  importar: () => Promise<Record<K, ComponentType>>,
+  nome: K,
+) => ({
+  path,
+  errorElement: <ErroRota />,
+  HydrateFallback: Carregando,
+  lazy: tela(importar, nome),
+});
+
 /** Rotas compartilhadas pelos perfis */
 const rotaCalendario = () => ({
   path: "calendario",
@@ -107,6 +119,25 @@ const rotaTurmas = () => ({
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage />, errorElement: <ErroRota /> },
+
+  // ▼ Públicas
+  rotaPublica(
+    "/redefinir-senha",
+    () => import("../modules/autenticacao/RedefinirSenhaPage"),
+    "RedefinirSenhaPage",
+  ),
+  rotaPublica(
+    "/privacidade",
+    () => import("../modules/institucional/PrivacidadeSuportePage"),
+    "PrivacidadeSuportePage",
+  ),
+  rotaPublica(
+    "/suporte",
+    () => import("../modules/institucional/PrivacidadeSuportePage"),
+    "PrivacidadeSuportePage",
+  ),
+
+  // ▼ Protegidas
   {
     element: <ProtectedRoute />,
     errorElement: <ErroRota />,
@@ -264,7 +295,8 @@ const router = createBrowserRouter([
       },
     ],
   },
-  { path: "*", element: <RedirecionarPorPapel /> },
+
+  { path: "*", element: <RedirecionarPorPapel /> }, // sempre por último
 ]);
 
 export function AppRoutes() {

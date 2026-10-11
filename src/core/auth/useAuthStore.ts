@@ -1,11 +1,12 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { supabase } from "@/lib/supabase";
+import { authStorage, definirLembrar } from "@/lib/authStorage";
 import type { Usuario } from "../../types";
 
 interface AuthState {
   usuario: Usuario | null;
-  login: (email: string, senha: string) => Promise<string | null>;
+  login: (email: string, senha: string, lembrar?: boolean) => Promise<string | null>;
   logout: () => Promise<void>;
   recarregarPerfil: () => Promise<void>;
   validarSessao: () => Promise<boolean>;
@@ -51,7 +52,9 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       usuario: null,
 
-      login: async (email, senha) => {
+      login: async (email, senha, lembrar = true) => {
+        // Antes do signIn: define onde o token e o perfil serão gravados
+        definirLembrar(lembrar);
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password: senha,
@@ -94,6 +97,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "alvora-sessao",
+      // Mesmo lugar da sessão do Supabase (local ou só nesta aba)
+      storage: createJSONStorage(() => authStorage),
       partialize: (s) => ({ usuario: s.usuario }),
     },
   ),

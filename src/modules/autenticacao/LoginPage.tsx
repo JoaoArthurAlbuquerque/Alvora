@@ -1,6 +1,12 @@
 // src/modules/autenticacao/LoginPage.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import {
+  useNavigate,
+  Navigate,
+  Link,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
 import {
   GraduationCap,
   BookOpen,
@@ -18,14 +24,16 @@ import {
 import { useAuthStore } from "../../core/auth/useAuthStore";
 import { Button } from "../../core/ui/Button";
 import { cn } from "../../core/lib/utils";
+import { lembrarSessao } from "../../lib/authStorage";
+import { RecuperarSenhaModal } from "./RecuperarSenhaModal";
 
 /** Arquivos em /public (o nome diferencia maiúsculas na Vercel) */
 const VIDEOS = [
-  "./aula.mp4",
-  "./aula2.mp4",
-  "./aula3.mp4",
-  "./aula4.mp4",
-  "./aula5.mp4",
+  "/aula.mp4",
+  "/aula2.mp4",
+  "/aula3.mp4",
+  "/aula4.mp4",
+  "/aula5.mp4",
 ];
 
 type Role = "aluno" | "professor" | "gestor";
@@ -51,6 +59,17 @@ export const LoginPage: React.FC = () => {
   const [ver, setVer] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [lembrar, setLembrar] = useState(lembrarSessao);
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
+  const [recuperando, setRecuperando] = useState(
+    () => params.get("recuperar") === "1",
+  );
+  const aviso = (location.state as { aviso?: string } | null)?.aviso ?? null;
+  const fecharRecuperar = () => {
+    setRecuperando(false);
+    if (params.has("recuperar")) setParams({}, { replace: true });
+  };
   // Vídeos: alternam com crossfade; pulam os que falharem; ficam parados com "reduzir movimento"
   const [atual, setAtual] = useState(0);
   const [falhas, setFalhas] = useState<Set<number>>(() => new Set());
@@ -104,7 +123,7 @@ export const LoginPage: React.FC = () => {
     setCarregando(true);
     setErro(null);
 
-    const msg = await login(email.trim(), senha);
+    const msg = await login(email.trim(), senha, lembrar);
     if (msg) {
       setCarregando(false);
       return setErro(ERROS[msg] ?? msg);
@@ -301,23 +320,38 @@ export const LoginPage: React.FC = () => {
                 </button>
               </div>
               <div className="mt-2 flex justify-end">
-                <a
-                  href="#"
-                  className="text-xs font-semibold text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
+                <button
+                  type="button"
+                  onClick={() => setRecuperando(true)}
+                  className="text-xs font-semibold text-primary hover:underline rounded cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
                 >
                   Esqueceu a senha?
-                </a>
+                </button>
               </div>
             </div>
 
             <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
               <input
                 type="checkbox"
-                defaultChecked
+                checked={lembrar}
+                onChange={(e) => setLembrar(e.target.checked)}
                 className="h-4 w-4 rounded accent-primary"
               />
               Manter conectado
+              <span className="text-[11px] text-slate-400">
+                {lembrar ? "(neste dispositivo)" : "(só nesta aba)"}
+              </span>
             </label>
+
+            {aviso && !erro && (
+              <p
+                role="status"
+                className="flex items-start gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3.5 py-2.5 animate-fade-in"
+              >
+                <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                {aviso}
+              </p>
+            )}
 
             {erro && (
               <p
@@ -356,16 +390,24 @@ export const LoginPage: React.FC = () => {
           </form>
 
           <p className="mt-10 text-xs text-slate-400 animate-fade-up">
-            <a href="#" className="hover:text-primary transition">
+            <Link to="/privacidade" className="hover:text-primary transition">
               Privacidade
-            </a>{" "}
+            </Link>{" "}
             ·{" "}
-            <a href="#" className="hover:text-primary transition">
+            <Link to="/suporte" className="hover:text-primary transition">
               Suporte
-            </a>
+            </Link>
           </p>
         </div>
       </section>
+
+      {recuperando && (
+        <RecuperarSenhaModal
+          aberto
+          emailInicial={email}
+          onFechar={fecharRecuperar}
+        />
+      )}
     </main>
   );
 };
