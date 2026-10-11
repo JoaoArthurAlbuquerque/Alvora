@@ -1,5 +1,5 @@
 // src/modules/autenticacao/LoginPage.tsx
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import {
   GraduationCap,
@@ -11,7 +11,6 @@ import {
   EyeOff,
   ArrowRight,
   Loader2,
-  Sparkles,
   TrendingUp,
   CheckCircle2,
   AlertCircle,
@@ -19,6 +18,15 @@ import {
 import { useAuthStore } from "../../core/auth/useAuthStore";
 import { Button } from "../../core/ui/Button";
 import { cn } from "../../core/lib/utils";
+
+/** Arquivos em /public (o nome diferencia maiúsculas na Vercel) */
+const VIDEOS = [
+  "./aula.mp4",
+  "./aula2.mp4",
+  "./aula3.mp4",
+  "./aula4.mp4",
+  "./aula5.mp4",
+];
 
 type Role = "aluno" | "professor" | "gestor";
 
@@ -43,8 +51,42 @@ export const LoginPage: React.FC = () => {
   const [ver, setVer] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Vídeos: alternam com crossfade; pulam os que falharem; ficam parados com "reduzir movimento"
+  const [atual, setAtual] = useState(0);
+  const [falhas, setFalhas] = useState<Set<number>>(() => new Set());
+  const refs = useRef<(HTMLVideoElement | null)[]>([]);
+  const [reduzMovimento] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const { usuario, login, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  /** Próximo vídeo válido depois de i (em loop) */
+  const proximo = (i: number) => {
+    for (let k = 1; k <= VIDEOS.length; k++) {
+      const j = (i + k) % VIDEOS.length;
+      if (!falhas.has(j)) return j;
+    }
+    return i;
+  };
+
+  const avancar = (i: number) => {
+    const n = proximo(i);
+    if (n === i)
+      refs.current[i]?.play().catch(() => {}); // só sobrou um: repete
+    else setAtual(n);
+  };
+
+  // Ao trocar, o vídeo ativo começa do início
+  useEffect(() => {
+    if (reduzMovimento) return;
+    const v = refs.current[atual];
+    if (!v) return;
+    v.currentTime = 0;
+    v.play().catch(() => {});
+  }, [atual, reduzMovimento]);
 
   if (usuario) return <Navigate to={`/${usuario.papel}`} replace />;
 
@@ -82,18 +124,36 @@ export const LoginPage: React.FC = () => {
 
   return (
     <main className="grid min-h-screen w-full lg:grid-cols-2 bg-white">
-      {/* ESQUERDA */}
+      {/* ESQUERDA: gradiente como reserva + vídeo por cima */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-brand p-12 text-white">
-        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/10 blur-3xl animate-float" />
-        <div className="pointer-events-none absolute bottom-0 right-0 w-80 h-80 rounded-full bg-fuchsia-400/20 blur-3xl animate-float [animation-delay:1.5s]" />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
-          style={{
-            backgroundImage:
-              "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-          }}
-        />
+        {VIDEOS.map((src, i) =>
+          falhas.has(i) ? null : (
+            <video
+              key={src}
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              aria-hidden
+              src={src}
+              muted
+              playsInline
+              preload={i === atual || i === proximo(atual) ? "auto" : "none"}
+              onEnded={() => i === atual && avancar(i)}
+              onError={() => {
+                setFalhas((s) => new Set(s).add(i));
+                if (i === atual) setAtual(proximo(i));
+              }}
+              className={cn(
+                "pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out",
+                i === atual ? "opacity-100" : "opacity-0",
+              )}
+            />
+          ),
+        )}
+
+        {/* Camada da marca: deixa o texto legível sobre o vídeo */}
+        <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-primary/80 via-primary-hover/65 to-[#6d5bff]/75" />
+        <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-ink/50 via-transparent to-ink/20" />
 
         <img
           src="/alvora_blue.svg"
@@ -104,28 +164,28 @@ export const LoginPage: React.FC = () => {
         <div className="relative space-y-8">
           <div className="max-w-md space-y-4 animate-fade-up">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur">
-              <Sparkles size={13} /> Plataforma educacional
+              Plataforma educacional
             </span>
-            <h2 className="text-4xl font-extrabold leading-tight">
+            <h2 className="text-4xl font-extrabold leading-tight drop-shadow-sm">
               Onde a escola inteira se encontra, da chamada ao boletim.
             </h2>
           </div>
 
           <div className="flex gap-4 stagger">
-            <div className="p-4 rounded-2xl bg-white/15 backdrop-blur border border-white/20 animate-float">
+            <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 animate-float">
               <TrendingUp size={18} className="mb-2" />
               <p className="text-2xl font-extrabold tabular">92%</p>
-              <p className="text-[11px] text-white/70">Frequência média</p>
+              <p className="text-[11px] text-white/80">Frequência média</p>
             </div>
-            <div className="p-4 rounded-2xl bg-white/15 backdrop-blur border border-white/20 animate-float [animation-delay:0.8s] mt-6">
+            <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 animate-float [animation-delay:0.8s] mt-6">
               <CheckCircle2 size={18} className="mb-2" />
               <p className="text-2xl font-extrabold tabular">1.2k</p>
-              <p className="text-[11px] text-white/70">Chamadas no mês</p>
+              <p className="text-[11px] text-white/80">Chamadas no mês</p>
             </div>
           </div>
         </div>
 
-        <p className="relative text-sm text-white/50">
+        <p className="relative text-sm text-white/70">
           © {new Date().getFullYear()} Alvora
         </p>
       </aside>
@@ -141,9 +201,9 @@ export const LoginPage: React.FC = () => {
 
           <div className="animate-fade-up">
             <h1 className="text-3xl font-extrabold text-ink">
-              Bem-vindo de volta 👋
+              Bem-vindo de volta
             </h1>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-slate-500">
               Entre com seu e-mail institucional para continuar.
             </p>
           </div>
@@ -166,9 +226,10 @@ export const LoginPage: React.FC = () => {
                   <button
                     key={id}
                     type="button"
+                    aria-pressed={role === id}
                     onClick={() => trocarRole(id)}
                     className={cn(
-                      "relative z-10 flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-bold transition-colors",
+                      "relative z-10 flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-colors",
                       role === id
                         ? "text-white"
                         : "text-slate-500 hover:text-primary",
@@ -209,20 +270,12 @@ export const LoginPage: React.FC = () => {
 
             {/* senha */}
             <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label
-                  htmlFor="senha"
-                  className="text-sm font-semibold text-ink"
-                >
-                  Senha
-                </label>
-                <a
-                  href="#"
-                  className="text-xs font-semibold text-primary hover:underline"
-                >
-                  Esqueceu?
-                </a>
-              </div>
+              <label
+                htmlFor="senha"
+                className="mb-1.5 block text-sm font-semibold text-ink"
+              >
+                Senha
+              </label>
               <div className="relative">
                 <Lock
                   size={16}
@@ -242,10 +295,18 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={() => setVer((v) => !v)}
                   aria-label={ver ? "Ocultar senha" : "Mostrar senha"}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/5 transition"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 cursor-pointer hover:text-primary hover:bg-primary/5 transition"
                 >
                   {ver ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <a
+                  href="#"
+                  className="text-xs font-semibold text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
+                >
+                  Esqueceu a senha?
+                </a>
               </div>
             </div>
 
