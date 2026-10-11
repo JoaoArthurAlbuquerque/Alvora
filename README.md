@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./public/alvora_blue.svg" alt="Alvora" width="140" />
+<img src="./public/alvora_blue.svg" alt="Alvora" width="500" />
 
 ### Gestão Escolar & AVA Inteligente
 
