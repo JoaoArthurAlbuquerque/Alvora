@@ -1,63 +1,45 @@
 import { useMemo } from "react";
 import { useAuthStore } from "../../core/auth/useAuthStore";
-import { alunoLogadoMock, boletimAlunoMock } from "../../mocks/data";
 import { calcularPercentual } from "../../utils/frequencia";
-import {
-  useJustificativas,
-  aplicarAbonos,
-} from "../../services/justificativaStore";
-import {
-  useRegistros,
-  aplicarRegistros,
-} from "../../services/diarioStore";
-import type { Aluno } from "../../types";
+import { useJustificativas, aplicarAbonos } from "../../services/justificativaStore";
+import { useMinhaFrequencia, useMeuBoletim, type ItemBoletim } from "../../services/alunoApi";
 
-/** Média das médias parciais lançadas (ignora disciplinas sem nota). */
-export function calcularMediaGeral(
-  boletim: { mediaParcial?: number | null }[],
-): number | null {
-  const notas = boletim
-    .map((b) => b.mediaParcial)
-    .filter((m): m is number => typeof m === "number");
+export function calcularMediaGeral(boletim: { mediaParcial?: number | null }[]): number | null {
+  const notas = boletim.map((b) => b.mediaParcial).filter((m): m is number => typeof m === "number");
   if (!notas.length) return null;
   return Number((notas.reduce((s, m) => s + m, 0) / notas.length).toFixed(2));
 }
 
-/** Identidade vem do Supabase; notas e frequência seguem mock por enquanto. */
 export function useAlunoDados() {
   const usuario = useAuthStore((s) => s.usuario);
   const justificativas = useJustificativas();
-  const registros = useRegistros();
+  const { dados, carregando, erro } = useMinhaFrequencia();
+  const boletim: ItemBoletim[] = useMeuBoletim();
 
-  const aluno: Aluno = useMemo(
+  const aluno = useMemo(
     () => ({
-      ...alunoLogadoMock,
-      id: usuario?.id ?? alunoLogadoMock.id,
-      nome: usuario?.nome || alunoLogadoMock.nome,
-      email: usuario?.email ?? alunoLogadoMock.email,
+      id: usuario?.id ?? "",
+      nome: usuario?.nome || "Aluno",
+      email: usuario?.email ?? "",
       matricula: usuario?.matricula || "—",
+      curso: (usuario as { curso?: string } | null)?.curso ?? "",
     }),
     [usuario],
   );
 
-  // 1º chamadas do professor → 2º abonos das justificativas
+  // Banco é a fonte; abonos locais aplicados por cima até migrar justificativas
   const historico = useMemo(
-    () =>
-      aplicarAbonos(
-        aplicarRegistros(aluno.historicoFrequencia, registros, aluno.id),
-        justificativas,
-        aluno.id,
-      ),
-    [aluno.historicoFrequencia, registros, justificativas, aluno.id],
+    () => aplicarAbonos(dados, justificativas, aluno.id),
+    [dados, justificativas, aluno.id],
   );
 
   const frequenciaGlobal = useMemo(() => {
     const total = historico.reduce((a, h) => a + h.presencas + h.faltas, 0);
     const presencas = historico.reduce((a, h) => a + h.presencas, 0);
-    return calcularPercentual(presencas, total);
+    return total ? calcularPercentual(presencas, total) : 100;
   }, [historico]);
 
-  const mediaGeral = useMemo(() => calcularMediaGeral(boletimAlunoMock), []);
+  const mediaGeral = useMemo(() => calcularMediaGeral(boletim), [boletim]);
 
-  return { aluno, historico, justificativas, frequenciaGlobal, mediaGeral };
+  return { aluno, historico, boletim, justificativas, frequenciaGlobal, mediaGeral, carregando, erro };
 }

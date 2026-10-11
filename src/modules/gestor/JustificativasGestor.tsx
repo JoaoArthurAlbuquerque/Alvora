@@ -1,3 +1,4 @@
+// src/modules/gestor/JustificativasGestor.tsx
 import React, { useMemo, useState } from "react";
 import {
   FileCheck2,
@@ -13,23 +14,19 @@ import { Badge } from "../../core/ui/Badge";
 import { Button } from "../../core/ui/Button";
 import { IconBubble } from "../../core/ui/IconBubble";
 import {
+  urlComprovante,
+  useAvaliarJustificativa,
   useJustificativas,
-  justificativaStore,
 } from "../../services/justificativaStore";
 import { cn } from "../../core/lib/utils";
-import {
-  GESTOR_ID,
-  SELO_JUST,
-  fmt,
-  fmtData,
-  iniciais,
-  pad,
-} from "./constantes";
+import { SELO_JUST, fmt, fmtData, iniciais, pad } from "./constantes";
 import { ModalTexto } from "./ModalTexto";
 
 export const JustificativasGestor: React.FC = () => {
   const justificativas = useJustificativas();
+  const avaliar = useAvaliarJustificativa();
   const [recusando, setRecusando] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
 
   const pendentes = useMemo(
     () =>
@@ -42,10 +39,32 @@ export const JustificativasGestor: React.FC = () => {
     () =>
       justificativas
         .filter((j) => j.status !== "pendente")
-        .sort((a, b) => (b.decididaEm ?? 0) - (a.decididaEm ?? 0))
+        .sort((a, b) => b.criadaEm - a.criadaEm)
         .slice(0, 5),
     [justificativas],
   );
+
+  // decidido_por e decidido_em são gravados pelo trigger no banco
+  const decidir = async (
+    id: string,
+    status: "aprovada" | "recusada",
+    parecer?: string,
+  ) => {
+    setErro(null);
+    try {
+      await avaliar.mutateAsync({ id, status, parecer });
+    } catch (e) {
+      setErro((e as Error).message || "Não foi possível salvar a decisão.");
+    }
+  };
+
+  const abrirAnexo = async (path: string) => {
+    try {
+      window.open(await urlComprovante(path), "_blank", "noopener");
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -56,7 +75,7 @@ export const JustificativasGestor: React.FC = () => {
             <h3 className="text-lg font-extrabold text-ink">
               Justificativas de falta
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Aprovadas abonam a falta no extrato do aluno automaticamente.
             </p>
           </div>
@@ -64,6 +83,15 @@ export const JustificativasGestor: React.FC = () => {
             {pad(pendentes.length)} pendente(s)
           </Badge>
         </div>
+
+        {erro && (
+          <p
+            role="alert"
+            className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl"
+          >
+            {erro}
+          </p>
+        )}
 
         {pendentes.length === 0 ? (
           <div className="p-8 rounded-2xl bg-emerald-50 text-center space-y-1 animate-pop">
@@ -87,7 +115,7 @@ export const JustificativasGestor: React.FC = () => {
                     <p className="text-sm font-bold text-ink truncate">
                       {j.alunoNome}
                     </p>
-                    <p className="text-[11px] text-slate-400 truncate">
+                    <p className="text-[11px] text-slate-500 truncate">
                       {j.disciplinaNome}
                     </p>
                   </div>
@@ -104,19 +132,22 @@ export const JustificativasGestor: React.FC = () => {
                   <Quote size={12} className="shrink-0 mt-0.5 text-primary" />{" "}
                   {j.motivo}
                 </p>
-                {j.anexoNome && (
-                  <p className="text-[11px] font-medium text-primary flex items-center gap-1">
-                    <Paperclip size={12} /> {j.anexoNome}
-                  </p>
+                {j.anexoPath && (
+                  <button
+                    type="button"
+                    onClick={() => abrirAnexo(j.anexoPath!)}
+                    className="w-fit text-[11px] font-medium text-primary flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Paperclip size={12} /> {j.anexoNome ?? "Comprovante"}
+                  </button>
                 )}
                 <div className="flex gap-2 mt-auto">
                   <Button
                     size="sm"
                     className="flex-1"
                     icon={<Check size={14} />}
-                    onClick={() =>
-                      justificativaStore.decidir(j.id, "aprovada", GESTOR_ID)
-                    }
+                    disabled={avaliar.isPending}
+                    onClick={() => decidir(j.id, "aprovada")}
                   >
                     Aprovar
                   </Button>
@@ -125,6 +156,7 @@ export const JustificativasGestor: React.FC = () => {
                     variant="danger"
                     className="flex-1"
                     icon={<X size={14} />}
+                    disabled={avaliar.isPending}
                     onClick={() => setRecusando(j.id)}
                   >
                     Recusar
@@ -156,7 +188,7 @@ export const JustificativasGestor: React.FC = () => {
                     <div className="min-w-0 text-xs">
                       <p className="font-bold text-ink">
                         {j.alunoNome}{" "}
-                        <span className="font-normal text-slate-400">
+                        <span className="font-normal text-slate-500">
                           · {j.disciplinaNome} · {fmtData(j.dataFalta)}
                         </span>
                       </p>
@@ -181,10 +213,9 @@ export const JustificativasGestor: React.FC = () => {
         confirmar="Recusar"
         perigo
         onFechar={() => setRecusando(null)}
-        onConfirmar={(t) =>
-          recusando &&
-          justificativaStore.decidir(recusando, "recusada", GESTOR_ID, t)
-        }
+        onConfirmar={(t) => {
+          if (recusando) decidir(recusando, "recusada", t);
+        }}
       />
     </div>
   );

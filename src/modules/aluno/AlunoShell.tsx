@@ -1,40 +1,59 @@
+// =====================================================================
+// src/modules/aluno/AlunoShell.tsx
+// =====================================================================
 import React, { useEffect, useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Radio, AlertTriangle, Check, KeyRound } from "lucide-react";
 import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
 import { IconBubble } from "../../core/ui/IconBubble";
-import { sessaoFrequenciaAtiva } from "../../mocks/data";
-import {
-  chamadaStore,
-  type ResultadoConfirmacao,
-} from "../../services/chamadaStore";
+import type { ResultadoConfirmacao } from "../../services/chamadaStore";
+import { useConfirmarPresenca } from "../../services/alunoApi";
 import { useChamadaAtiva } from "../../services/useChamadaAtiva";
 import { useRegras } from "../../services/regrasService";
-import {
-  useAlertas,
-  alertaStore,
-  NOTA_MINIMA,
-  type MotivoAlerta,
-} from "../../services/radarRisco";
-import { DISCIPLINA_ID } from "../../services/frequenciaTurma";
+import { classificar, type MotivoAlerta } from "../../services/radarRisco";
 import { cn } from "../../core/lib/utils";
 import { useAlunoDados } from "./useAlunoDados";
 
-const MENSAGENS_ERRO: Record<
-  Exclude<ResultadoConfirmacao, "ok" | "duplicado">,
-  string
-> = {
+type ResultadoErro = Exclude<ResultadoConfirmacao, "ok" | "duplicado">;
+
+const MENSAGENS_ERRO: Record<ResultadoErro, string> = {
   invalido: "PIN inválido, expirado ou você não é desta turma.",
   expirado: "Essa chamada expirou. Peça um novo PIN ao professor.",
   erro: "Falha de conexão. Tente novamente.",
 };
 
+/** Ciência dos alertas fica no navegador até existir tabela no banco */
+const chaveCientes = (alunoId: string) => `alvora:cientes:${alunoId}`;
+const lerCientes = (alunoId: string): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(chaveCientes(alunoId)) ?? "[]");
+  } catch {
+    return [];
+  }
+};
+
+interface AlertaAluno {
+  id: string;
+  disciplinaNome: string;
+  motivo: MotivoAlerta;
+  percentual: number;
+  restantes: number;
+  media: number | null;
+}
+
 export const AlunoShell: React.FC = () => {
   const navigate = useNavigate();
-  const { aluno, historico } = useAlunoDados();
-  const { frequenciaMinima: FREQ_MINIMA } = useRegras();
+  const { aluno, historico, boletim } = useAlunoDados();
+  const regras = useRegras();
+  const {
+    frequenciaMinima: FREQ_MINIMA,
+    mediaMinima: MEDIA_MINIMA,
+    digitosPin,
+  } = regras;
+  const confirmar = useConfirmarPresenca();
 
+  // ---------- Chamada ao vivo ----------
   const chamada = useChamadaAtiva();
   const expiraEm = chamada?.expiraEm ?? null;
   const [agora, setAgora] = useState(() => Date.now());
@@ -58,6 +77,7 @@ export const AlunoShell: React.FC = () => {
     };
   }, [expiraEm]);
 
+  // ---------- PIN ----------
   const [pinAberto, setPinAberto] = useState(false);
   const [pin, setPin] = useState("");
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -69,7 +89,7 @@ export const AlunoShell: React.FC = () => {
     e.preventDefault();
     if (enviando) return;
     setEnviando(true);
-    const r = await chamadaStore.confirmar(pin, aluno.id);
+    const r: ResultadoConfirmacao = await confirmar(pin);
     setEnviando(false);
     setAgora(Date.now());
 
@@ -98,45 +118,76 @@ export const AlunoShell: React.FC = () => {
     setMsg("");
   };
 
-  const todos = useAlertas();
-  const alertas = useMemo(
+  // ---------- Alertas por disciplina ----------
+  const [cientes, setCientes] = useState<string[]>(() => lerCientes(aluno.id));
+  const [cientesDe, setCientesDe] = useState(aluno.id);
+
+  // Recarrega a lista no próprio render quando o aluno troca (sem useEffect)
+  if (cientesDe !== aluno.id) {
+    setCientesDe(aluno.id);
+    setCientes(lerCientes(aluno.id));
+  }
+
+  const marcarCiente = (id: string) => {
+    const novos = [...new Set([...cientes, id])];
+    setCientes(novos);
+    localStorage.setItem(chaveCientes(aluno.id), JSON.stringify(novos));
+  };
+
+  const alertas = useMemo<AlertaAluno[]>(
     () =>
-      todos.filter(
-        (a) =>
-          a.alunoId === aluno.id &&
-          a.notificado.aluno &&
-          !a.historico.some((h) => h.acao === "aluno ciente"),
-      ),
-    [todos, aluno.id],
+      historico
+        .map((h) => {
+          const media =
+            boletim.find((b) => b.id === h.disciplinaId)?.mediaParcial ?? null;
+          const { motivo } = classificar(
+            100 - h.percentualFrequencia,
+            media,
+            regras,
+          );
+          const limite = Math.floor((h.totalAulas * (100 - FREQ_MINIMA)) / 100);
+          return {
+            id: h.disciplinaId,
+            disciplinaNome: h.disciplinaNome,
+            motivo,
+            percentual: h.percentualFrequencia,
+            restantes: Math.max(0, limite - h.faltas),
+            media,
+          };
+        })
+        .filter(
+          (a): a is AlertaAluno =>
+            !!a.motivo && !cientes.includes(`${a.id}:${a.motivo}`),
+        ),
+    [historico, boletim, regras, FREQ_MINIMA, cientes],
   );
 
-  const disc = historico.find((h) => h.disciplinaId === DISCIPLINA_ID);
-  const limite = disc
-    ? Math.floor((disc.totalAulas * (100 - FREQ_MINIMA)) / 100)
-    : 0;
-  const restantes = disc ? Math.max(0, limite - disc.faltas) : 0;
-
-  const mensagem = (motivo: MotivoAlerta) => {
-    const nome = disc?.disciplinaNome ?? "uma disciplina";
-    const faltas = disc
-      ? `${disc.percentualFrequencia}% de frequência em ${nome}. ${restantes > 0 ? `Restam ${restantes} falta(s) até o limite.` : "Limite de faltas atingido."}`
-      : `Frequência abaixo do mínimo em ${nome}.`;
-    const nota = `Média abaixo de ${NOTA_MINIMA} em ${nome}.`;
-    return motivo === "FALTAS"
+  const mensagem = (a: AlertaAluno) => {
+    const faltas = `${a.percentual}% de frequência em ${a.disciplinaNome}. ${
+      a.restantes > 0
+        ? `Restam ${a.restantes} falta(s) até o limite.`
+        : "Limite de faltas atingido."
+    }`;
+    const nota = `Média abaixo de ${MEDIA_MINIMA} em ${a.disciplinaNome}.`;
+    return a.motivo === "FALTAS"
       ? faltas
-      : motivo === "NOTA"
+      : a.motivo === "NOTA"
         ? nota
         : `${faltas} ${nota}`;
   };
 
   const urgente = restante <= 30;
+  const casas = Array.from({ length: digitosPin }, (_, i) => i);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       {chamadaAtiva && (
-        <div className="relative overflow-hidden flex flex-col sm:flex-row sm:items-center gap-4 p-5 rounded-2xl bg-brand text-white shadow-glow animate-fade-up">
+        <div
+          role="status"
+          className="relative overflow-hidden flex flex-col sm:flex-row sm:items-center gap-4 p-5 rounded-2xl bg-brand text-white shadow-glow animate-fade-up"
+        >
           <div className="absolute -right-10 -top-12 w-40 h-40 rounded-full bg-white/10" />
-          <div className="relative w-12 h-12 shrink-0">
+          <div aria-hidden className="relative w-12 h-12 shrink-0">
             <span className="absolute inset-0 rounded-full bg-white/30 animate-ping" />
             <span className="relative w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
               <Radio size={22} />
@@ -147,19 +198,19 @@ export const AlunoShell: React.FC = () => {
               Chamada ao vivo
             </p>
             <p className="text-base font-bold truncate">
-              {chamada?.disciplinaNome ?? sessaoFrequenciaAtiva.disciplinaNome}
+              {chamada?.disciplinaNome ?? "Aula em andamento"}
             </p>
           </div>
           <div
+            aria-label="Tempo restante"
             className={cn(
-              "relative px-4 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center font-extrabold text-lg tabular",
+              "relative px-4 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center font-extrabold text-lg tabular",
               urgente && "animate-pulse bg-rose-500/40",
             )}
           >
             {Math.floor(restante / 60)}:{String(restante % 60).padStart(2, "0")}
           </div>
           <Button
-            size="md"
             icon={<KeyRound size={16} />}
             className="relative bg-white text-primary! shadow-lg hover:bg-white hover:-translate-y-0.5"
             onClick={() => setPinAberto(true)}
@@ -171,30 +222,33 @@ export const AlunoShell: React.FC = () => {
 
       {alertas.map((al) => (
         <div
-          key={al.id}
+          key={`${al.id}:${al.motivo}`}
+          role="status"
           className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-2xl bg-white shadow-flat border-l-4 border-rose-400 animate-fade-up"
         >
           <IconBubble icone={AlertTriangle} cor="rose" tamanho="sm" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-ink">{mensagem(al.motivo)}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-ink">{mensagem(al)}</p>
             <p className="text-xs text-slate-500">
               Ainda dá tempo de virar o jogo 💪 A coordenação está te
               acompanhando.
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 shrink-0">
             <Button
               size="sm"
               variant="outline"
-              onClick={() => navigate("/aluno/frequencia")}
+              onClick={() =>
+                navigate(
+                  al.motivo === "NOTA" ? "/aluno/boletim" : "/aluno/frequencia",
+                )
+              }
             >
-              Ver extrato
+              Ver detalhes
             </Button>
             <Button
               size="sm"
-              onClick={() =>
-                alertaStore.registrar(al.id, "aluno ciente", aluno.id)
-              }
+              onClick={() => marcarCiente(`${al.id}:${al.motivo}`)}
             >
               Estou ciente
             </Button>
@@ -206,8 +260,8 @@ export const AlunoShell: React.FC = () => {
 
       <Modal isOpen={pinAberto} onClose={fecharPin} title="Confirmar presença">
         {status === "success" ? (
-          <div className="text-center py-4 space-y-5">
-            <div className="relative w-20 h-20 mx-auto">
+          <div role="status" className="text-center py-4 space-y-5">
+            <div aria-hidden className="relative w-20 h-20 mx-auto">
               <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping" />
               <div className="relative w-20 h-20 rounded-full bg-linear-to-br from-emerald-300 to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/40 animate-pop">
                 <Check size={36} strokeWidth={3} />
@@ -226,7 +280,7 @@ export const AlunoShell: React.FC = () => {
         ) : (
           <form onSubmit={validar} className="space-y-5">
             <p className="text-sm text-slate-500 text-center">
-              Digite o PIN de 4 dígitos exibido em sala
+              Digite o PIN de {digitosPin} dígitos exibido em sala
             </p>
             <label
               key={tentativa}
@@ -235,20 +289,27 @@ export const AlunoShell: React.FC = () => {
               <input
                 autoFocus
                 inputMode="numeric"
-                maxLength={4}
+                autoComplete="one-time-code"
+                maxLength={digitosPin}
                 value={pin}
-                aria-label="PIN"
+                aria-label={`PIN de ${digitosPin} dígitos`}
                 onChange={(e) =>
-                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, digitosPin))
                 }
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
-              <div className="grid grid-cols-4 gap-3">
-                {[0, 1, 2, 3].map((i) => (
+              <div
+                aria-hidden
+                className="grid gap-2 sm:gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${digitosPin}, minmax(0, 1fr))`,
+                }}
+              >
+                {casas.map((i) => (
                   <div
                     key={i}
                     className={cn(
-                      "h-16 rounded-2xl border-2 flex items-center justify-center text-3xl font-extrabold tabular transition-all duration-200",
+                      "h-14 sm:h-16 rounded-2xl border-2 flex items-center justify-center text-2xl sm:text-3xl font-extrabold tabular transition-all duration-200",
                       pin[i]
                         ? "border-primary bg-primary/5 text-primary -translate-y-0.5 shadow-flat-sm"
                         : "border-slate-200 text-slate-300",
@@ -267,7 +328,10 @@ export const AlunoShell: React.FC = () => {
               </div>
             </label>
             {status === "error" && (
-              <p className="text-sm font-medium text-rose-600 bg-rose-50 p-3 rounded-xl text-center animate-fade-in">
+              <p
+                role="alert"
+                className="text-sm font-medium text-rose-600 bg-rose-50 p-3 rounded-xl text-center animate-fade-in"
+              >
                 {msg}
               </p>
             )}
@@ -275,7 +339,7 @@ export const AlunoShell: React.FC = () => {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={pin.length !== 4 || enviando}
+              disabled={pin.length !== digitosPin || enviando}
             >
               {enviando ? "Enviando..." : "Confirmar presença"}
             </Button>

@@ -1,4 +1,7 @@
-import React, { useEffect } from "react";
+// =====================================================================
+// src/core/ui/Modal.tsx
+// =====================================================================
+import React, { useEffect, useId } from "react";
 import { X } from "lucide-react";
 
 interface ModalProps {
@@ -14,6 +17,8 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   children,
 }) => {
+  const tituloId = useId();
+
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -35,17 +40,20 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={tituloId}
         onClick={(e) => e.stopPropagation()}
         className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl shadow-primary/20 flex flex-col max-h-[90vh] animate-scale-in overflow-hidden"
       >
-        <div className="relative px-6 h-16 flex items-center justify-between bg-brand text-white overflow-hidden">
+        <div className="relative px-6 h-16 shrink-0 flex items-center justify-between gap-3 bg-brand text-white overflow-hidden">
           <div className="absolute -right-8 -top-10 w-32 h-32 rounded-full bg-white/10" />
-          <h3 className="relative text-base font-bold">{title}</h3>
+          <h3 id={tituloId} className="relative text-base font-bold truncate">
+            {title}
+          </h3>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="relative p-1.5 rounded-lg hover:bg-white/15 hover:rotate-90 transition-all duration-300"
+            className="relative w-9 h-9 shrink-0 flex items-center justify-center rounded-full cursor-pointer hover:bg-white/15 hover:rotate-90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/40 transition-all duration-300"
           >
             <X size={18} />
           </button>
