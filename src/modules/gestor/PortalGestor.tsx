@@ -1,3 +1,6 @@
+// =====================================================================
+// src/modules/gestor/PortalGestor.tsx
+// =====================================================================
 import React, { useMemo, useState } from "react";
 import {
   Users,
@@ -8,6 +11,7 @@ import {
   Radar,
   FileCheck2,
   UserPlus,
+  School,
 } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { PageHeader } from "../../core/ui/PageHeader";
@@ -17,13 +21,15 @@ import { useFrequenciaTurma } from "../../services/frequenciaTurma";
 import { useJustificativas } from "../../services/justificativaStore";
 // Importar do service garante que as regras salvas já foram carregadas
 import { useRegras } from "../../services/regrasService";
+import { useTurmasGestao } from "../../services/api/gestao";
 import { cn } from "../../core/lib/utils";
 import { pad } from "./constantes";
 import { RadarGestor } from "./RadarGestor";
 import { JustificativasGestor } from "./JustificativasGestor";
 import { AdminUsuarios } from "./AdminUsuarios";
+import { GestaoTurmas } from "./turmas/GestaoTurmas";
 
-type Aba = "radar" | "justificativas" | "usuarios";
+type Aba = "radar" | "justificativas" | "turmas" | "usuarios";
 
 export const PortalGestor: React.FC = () => {
   const {
@@ -35,11 +41,16 @@ export const PortalGestor: React.FC = () => {
   const alertas = useMemo(() => todos.filter(alertaAtivo), [todos]);
   const justificativas = useJustificativas();
   const { alunos, mediaFrequencia } = useFrequenciaTurma();
+  const { data: turmas = [] } = useTurmasGestao();
   const [aba, setAba] = useState<Aba>("radar");
 
   const semNotif = alertas.filter((a) => !a.notificado.aluno).length;
   const justPend = justificativas.filter((j) => j.status === "pendente").length;
   const dentroMeta = mediaFrequencia >= FREQ_MINIMA;
+  // Turmas ativas com alguma disciplina ainda sem professor
+  const turmasPendentes = turmas.filter(
+    (t) => t.ativa && t.semProfessor > 0,
+  ).length;
 
   const kpis = [
     {
@@ -87,6 +98,7 @@ export const PortalGestor: React.FC = () => {
       icone: FileCheck2,
       qtd: justPend,
     },
+    { id: "turmas", label: "Turmas", icone: School, qtd: turmasPendentes },
     { id: "usuarios", label: "Usuários", icone: UserPlus, qtd: 0 },
   ];
 
@@ -142,6 +154,7 @@ export const PortalGestor: React.FC = () => {
       <div key={aba} className="animate-fade-up">
         {aba === "radar" && <RadarGestor />}
         {aba === "justificativas" && <JustificativasGestor />}
+        {aba === "turmas" && <GestaoTurmas />}
         {aba === "usuarios" && <AdminUsuarios />}
       </div>
     </div>

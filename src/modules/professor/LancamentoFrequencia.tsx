@@ -1,88 +1,77 @@
-import React, { useState, useEffect, useMemo } from "react";
+// =====================================================================
+// src/modules/professor/LancamentoFrequencia.tsx
+// =====================================================================
+import React, { useState, useEffect } from "react";
 import { Radio, KeyRound, Save, Users, X, Zap } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { Modal } from "../../core/ui/Modal";
-import { sessaoFrequenciaAtiva } from "../../mocks/data";
-import { useAlunosTurma } from "../../services/alunosTurma";
-import { chamadaStore, useChamada } from "../../services/chamadaStore";
-import {
-  diarioStore,
-  useRegistros,
-  contaComoPresenca,
-} from "../../services/diarioStore";
-import {
-  TURMA_ID,
-  DISCIPLINA_ID,
-  TURMA_DISCIPLINA_ID,
-  ehUuid,
-  turmaConsulta,
-} from "../../services/frequenciaTurma";
 import { useRegras } from "../../services/regrasService";
+import { useAlunosTurma, type Sala } from "../../services/api/turmas";
+import {
+  useAbrirChamada,
+  useEncerrarChamada,
+  useFrequenciaSala,
+  usePinAtivo,
+  usePresentesPin,
+  useSalvarDiario,
+  type StatusBanco,
+} from "../../services/api/professor";
 import type { StatusPresenca } from "../../types";
 import { cn } from "../../core/lib/utils";
-import { PROXIMO, VISUAL, formatarTempo, hoje, iniciais } from "./constantes";
+import { PROXIMO, VISUAL, formatarTempo, iniciais } from "./constantes";
+import { ComSala } from "./SeletorSala";
 
-interface Props {
-  /** turma_disciplinas.id (UUID). Se não vier, usa VITE_TURMA_DISCIPLINA_ID. */
-  turmaDisciplinaId?: string;
-  disciplinaNome?: string;
+const contaPresenca = (s: StatusBanco) =>
+  s === "PRESENTE_PIN" || s === "PRESENTE_MANUAL" || s === "ABONADA";
+
+interface AlunoDiario {
+  id: string;
+  nome: string;
+  matricula: string;
+  viaPin: boolean;
+  status: StatusBanco;
 }
 
-export const LancamentoFrequencia: React.FC<Props> = ({
-  turmaDisciplinaId = TURMA_DISCIPLINA_ID,
-  disciplinaNome = sessaoFrequenciaAtiva.disciplinaNome,
-}) => {
-  const { validadePinMinutos, digitosPin } = useRegras();
-  // Calculado aqui dentro para acompanhar as mudanças que o gestor fizer
-  const duracaoMs = validadePinMinutos * 60 * 1000;
+export const LancamentoFrequencia: React.FC<{ sala?: Sala }> = ({ sala }) => (
+  <ComSala sala={sala}>{(s) => <DiarioSala sala={s} />}</ComSala>
+);
 
-  const { chamadaId, pin, expiraEm, presentesIds } = useChamada();
-  const registros = useRegistros();
-  const turma = useAlunosTurma(turmaConsulta());
+const DiarioSala: React.FC<{ sala: Sala }> = ({ sala }) => {
+  const { validadePinMinutos, digitosPin } = useRegras();
+  const { data: turma = [], isLoading } = useAlunosTurma(sala.turmaId);
+  const { data: freq } = useFrequenciaSala(sala.id);
+  const { data: pinAtivo } = usePinAtivo(sala.id);
+  const abrir = useAbrirChamada(sala.id);
+  const encerrar = useEncerrarChamada(sala.id);
+  const salvar = useSalvarDiario(sala.id);
+
   const [ajustesManuais, setAjustesManuais] = useState<
     Record<string, StatusPresenca>
   >({});
   const [isModalPinOpen, setIsModalPinOpen] = useState(false);
   const [agora, setAgora] = useState(() => Date.now());
   const [toast, setToast] = useState<string | null>(null);
-  const [abrindo, setAbrindo] = useState(false);
 
+  const expiraEm = pinAtivo?.expiraEm ?? null;
   const tempoRestante = expiraEm
     ? Math.max(0, Math.ceil((expiraEm - agora) / 1000))
     : 0;
   const chamadaAtiva = tempoRestante > 0;
-  const jaSalvoHoje = diarioStore.jaSalvo(TURMA_ID, DISCIPLINA_ID);
+  const { data: presentesIds = [] } = usePresentesPin(sala.id, chamadaAtiva);
+  const salvosHoje = freq?.statusHoje ?? {};
+  const jaSalvoHoje = !!freq?.diarioHojeSalvo;
 
-  const salvosHoje = useMemo(() => {
-    const d = hoje();
-    const mapa: Record<string, StatusPresenca> = {};
-    registros.forEach((r) => {
-      if (
-        r.turmaId === TURMA_ID &&
-        r.disciplinaId === DISCIPLINA_ID &&
-        r.data === d
-      )
-        mapa[r.alunoId] = r.status;
-    });
-    return mapa;
-  }, [registros]);
-
-  const alunos = turma.map((a) => {
+  const alunos: AlunoDiario[] = turma.map((a): AlunoDiario => {
     const viaPin = presentesIds.includes(a.id);
-    const salvo = salvosHoje[a.id];
-    const mock: StatusPresenca = a.presente ? "PRESENTE_MANUAL" : "FALTA";
-    const base: StatusPresenca =
-      chamadaAtiva && viaPin
-        ? "PRESENTE_PIN"
-        : (salvo ?? (viaPin ? "PRESENTE_PIN" : mock));
-    const status = ajustesManuais[a.id] ?? base;
+    const salvo: StatusBanco | undefined = salvosHoje[a.id];
+    const base: StatusBanco = viaPin ? "PRESENTE_PIN" : (salvo ?? "FALTA");
+    const ajuste: StatusBanco | undefined = ajustesManuais[a.id];
+    const status: StatusBanco = ajuste ?? base;
     return { ...a, viaPin: status === "PRESENTE_PIN", status };
   });
 
-  const totalPresentes = alunos.filter((a) =>
-    contaComoPresenca(a.status),
-  ).length;
+  const totalPresentes = alunos.filter((a) => contaPresenca(a.status)).length;
   const pct = alunos.length ? (totalPresentes / alunos.length) * 100 : 0;
 
   // Cronômetro
@@ -96,14 +85,6 @@ export const LancamentoFrequencia: React.FC<Props> = ({
     return () => clearInterval(timer);
   }, [expiraEm]);
 
-  // Busca no banco quem já confirmou via PIN
-  useEffect(() => {
-    if (!chamadaAtiva) return;
-    chamadaStore.atualizarPresentes();
-    const t = setInterval(() => chamadaStore.atualizarPresentes(), 3000);
-    return () => clearInterval(t);
-  }, [chamadaAtiva]);
-
   // Toast some sozinho
   useEffect(() => {
     if (!toast) return;
@@ -113,23 +94,13 @@ export const LancamentoFrequencia: React.FC<Props> = ({
 
   const handleGerarPin = async () => {
     if (!chamadaAtiva) {
-      if (!ehUuid(turmaDisciplinaId)) {
-        setToast("Configure VITE_TURMA_DISCIPLINA_ID com um UUID válido ⚠️");
-        return;
-      }
-      setAbrindo(true);
       try {
         setAjustesManuais({});
-        await chamadaStore.iniciar(duracaoMs, {
-          disciplinaId: turmaDisciplinaId,
-          disciplinaNome,
-        });
+        await abrir.mutateAsync(validadePinMinutos);
         setAgora(Date.now());
       } catch (e) {
         setToast((e as Error).message);
         return;
-      } finally {
-        setAbrindo(false);
       }
     }
     setIsModalPinOpen(true);
@@ -137,8 +108,7 @@ export const LancamentoFrequencia: React.FC<Props> = ({
 
   const handleEncerrar = async () => {
     try {
-      await chamadaStore.encerrar();
-      await chamadaStore.atualizarPresentes();
+      await encerrar.mutateAsync();
     } catch (e) {
       setToast((e as Error).message);
     }
@@ -146,38 +116,36 @@ export const LancamentoFrequencia: React.FC<Props> = ({
     setIsModalPinOpen(false);
   };
 
-  const alternarStatus = (id: string, atual: StatusPresenca) =>
+  const alternarStatus = (id: string, atual: StatusBanco) => {
+    if (atual === "ABONADA")
+      return setToast("Falta abonada pela secretaria 🔒");
     setAjustesManuais((prev) => ({ ...prev, [id]: PROXIMO[atual] }));
+  };
 
   const handleSalvarDiario = async () => {
-    if (chamadaAtiva) {
-      try {
-        await chamadaStore.encerrar();
-      } catch {
-        /* segue salvando localmente */
-      }
+    try {
+      if (chamadaAtiva) await encerrar.mutateAsync();
       setAgora(Date.now());
+      const statusPorAluno: Record<string, StatusBanco> = {};
+      alunos.forEach((a: AlunoDiario) => {
+        // Abono vem do trigger: não sobrescreve
+        if (a.status !== "ABONADA") statusPorAluno[a.id] = a.status;
+      });
+      const total = await salvar.mutateAsync(statusPorAluno);
+      setAjustesManuais({});
+      setToast(
+        jaSalvoHoje
+          ? `Diário atualizado: ${total} alunos 📒`
+          : `Diário salvo: ${total} alunos registrados 📒`,
+      );
+    } catch (e) {
+      setToast((e as Error).message);
     }
-    const statusPorAluno: Record<string, StatusPresenca> = {};
-    alunos.forEach((a) => (statusPorAluno[a.id] = a.status));
-    const eraAtualizacao = jaSalvoHoje;
-    const total = diarioStore.salvar({
-      turmaId: TURMA_ID,
-      disciplinaId: DISCIPLINA_ID,
-      chamadaId: chamadaId ?? undefined,
-      statusPorAluno,
-    });
-    setAjustesManuais({});
-    setToast(
-      eraAtualizacao
-        ? `Diário atualizado: ${total} alunos 📒`
-        : `Diário salvo: ${total} alunos registrados 📒`,
-    );
   };
 
   const r = 34,
     c = 2 * Math.PI * r;
-  const digitos = (pin ?? "-".repeat(digitosPin)).split("");
+  const digitos = (pinAtivo?.pin ?? "-".repeat(digitosPin)).split("");
   const urgente = chamadaAtiva && tempoRestante <= 30;
 
   return (
@@ -260,7 +228,7 @@ export const LancamentoFrequencia: React.FC<Props> = ({
               !chamadaAtiva && "text-ink",
             )}
           >
-            {disciplinaNome}
+            {sala.disciplinaNome}
           </h2>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <span
@@ -269,7 +237,7 @@ export const LancamentoFrequencia: React.FC<Props> = ({
                 chamadaAtiva ? "text-white/80" : "text-slate-400",
               )}
             >
-              Turma A
+              {sala.turmaNome}
             </span>
             {jaSalvoHoje && (
               <span
@@ -290,24 +258,33 @@ export const LancamentoFrequencia: React.FC<Props> = ({
           <Button
             icon={<KeyRound size={16} />}
             onClick={handleGerarPin}
-            disabled={abrindo}
+            disabled={abrir.isPending}
             className={cn(
               chamadaAtiva &&
                 "bg-white text-primary! hover:bg-white hover:-translate-y-0.5 shadow-lg",
             )}
           >
-            {abrindo ? "Abrindo..." : chamadaAtiva ? "Exibir PIN" : "Gerar PIN"}
+            {abrir.isPending
+              ? "Abrindo..."
+              : chamadaAtiva
+                ? "Exibir PIN"
+                : "Gerar PIN"}
           </Button>
           <Button
             variant="outline"
             icon={<Save size={16} />}
             onClick={handleSalvarDiario}
+            disabled={salvar.isPending || !alunos.length}
             className={cn(
               chamadaAtiva &&
                 "border-white/40 text-white! bg-white/10 hover:bg-white/20",
             )}
           >
-            {jaSalvoHoje ? "Atualizar diário" : "Salvar diário"}
+            {salvar.isPending
+              ? "Salvando..."
+              : jaSalvoHoje
+                ? "Atualizar diário"
+                : "Salvar diário"}
           </Button>
         </div>
       </div>
@@ -329,9 +306,13 @@ export const LancamentoFrequencia: React.FC<Props> = ({
           </span>
         </div>
 
-        {alunos.length === 0 ? (
+        {isLoading ? (
           <p className="text-sm text-slate-400 text-center py-6">
             Carregando alunos... ⏳
+          </p>
+        ) : alunos.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-6">
+            Nenhum aluno com matrícula ativa nesta turma.
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 stagger">
@@ -360,7 +341,7 @@ export const LancamentoFrequencia: React.FC<Props> = ({
                       {a.nome}
                     </p>
                     <p className="text-[11px] text-slate-400 tabular">
-                      Mat. {a.matricula}
+                      {a.matricula ? `Mat. ${a.matricula}` : "Sem matrícula"}
                       {a.viaPin && (
                         <span className="text-primary font-semibold">
                           {" "}
@@ -411,12 +392,12 @@ export const LancamentoFrequencia: React.FC<Props> = ({
             Digite no Portal do Aluno
           </p>
 
-          <div className="flex justify-center gap-3">
+          <div className="flex justify-center gap-2 sm:gap-3">
             {digitos.map((d, i) => (
               <div
-                key={`${pin}-${i}`}
+                key={`${pinAtivo?.pin}-${i}`}
                 style={{ animationDelay: `${i * 90}ms` }}
-                className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-brand text-white shadow-glow flex items-center justify-center text-5xl sm:text-6xl font-black tabular animate-pop"
+                className="w-12 h-16 sm:w-16 sm:h-20 rounded-2xl bg-brand text-white shadow-glow flex items-center justify-center text-4xl sm:text-5xl font-black tabular animate-pop"
               >
                 {d}
               </div>
@@ -462,6 +443,7 @@ export const LancamentoFrequencia: React.FC<Props> = ({
                 className="w-full"
                 variant="outline"
                 onClick={handleEncerrar}
+                disabled={encerrar.isPending}
               >
                 Encerrar chamada
               </Button>

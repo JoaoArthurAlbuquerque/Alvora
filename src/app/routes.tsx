@@ -1,3 +1,6 @@
+// =====================================================================
+// src/app/routes.tsx
+// =====================================================================
 import type { ComponentType } from "react";
 import {
   createBrowserRouter,
@@ -185,7 +188,14 @@ const router = createBrowserRouter([
                   "AuditoriaGestor",
                 ),
               },
-              rotaTurmas(),
+              // Gestor usa a tela de gestão (o professor segue com a TurmasPage)
+              {
+                path: "turmas",
+                lazy: tela(
+                  () => import("../modules/gestor/turmas/GestaoTurmas"),
+                  "GestaoTurmas",
+                ),
+              },
               rotaCalendario(),
               rotaPerfil(),
             ],
