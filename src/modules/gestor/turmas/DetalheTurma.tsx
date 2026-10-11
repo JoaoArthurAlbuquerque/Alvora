@@ -221,7 +221,7 @@ export const DetalheTurma: React.FC<{
                     key={s.id}
                     className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-slate-50"
                   >
-                    <div className="flex-1 min-w-[160px]">
+                    <div className="flex-1 min-w-40">
                       <p className="text-sm font-bold text-ink">
                         {s.disciplina.nome}
                       </p>
@@ -280,7 +280,7 @@ export const DetalheTurma: React.FC<{
         ) : (
           <Card className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[180px]">
+              <div className="relative flex-1 min-w-45">
                 <Search
                   size={15}
                   aria-hidden
@@ -328,7 +328,7 @@ export const DetalheTurma: React.FC<{
                       key={m.id}
                       className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-xl bg-slate-50"
                     >
-                      <div className="flex-1 min-w-[140px]">
+                      <div className="flex-1 min-w-35">
                         <p className="text-sm font-bold text-ink truncate">
                           {m.aluno.nome}
                         </p>

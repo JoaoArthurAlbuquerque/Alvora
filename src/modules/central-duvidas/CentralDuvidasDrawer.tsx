@@ -11,7 +11,7 @@ export const CentralDuvidasDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#0F172A]/30 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex justify-end bg-ink/30 backdrop-blur-xs">
       <div className="w-full max-w-md bg-white h-full shadow-flat p-6 flex flex-col justify-between">
         <div>
           <div className="flex justify-between items-center pb-4 border-b border-primary/10">
