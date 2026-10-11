@@ -7,6 +7,7 @@ import {
   GraduationCap,
   Pencil,
   Plus,
+  Search,
   Trash2,
   UserPlus,
   Users,
@@ -91,9 +92,8 @@ export const DetalheTurma: React.FC<{
 
   return (
     <div className="space-y-4">
-      <Card className="relative overflow-hidden space-y-4">
-        <div className="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-primary/5" />
-        <div className="relative flex flex-wrap items-center gap-4">
+      <Card className="space-y-5">
+        <div className="flex flex-wrap items-center gap-4">
           <IconBubble icone={Users} cor={turma.ativa ? "primary" : "violet"} />
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -102,11 +102,11 @@ export const DetalheTurma: React.FC<{
               </h2>
               {!turma.ativa && <Badge variant="neutral">Arquivada</Badge>}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Ano letivo {turma.ano_letivo ?? "não definido"}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -149,14 +149,16 @@ export const DetalheTurma: React.FC<{
           </div>
         </div>
 
-        <div className="relative grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {[
             { l: "Alunos ativos", v: ativos.length },
             { l: "Disciplinas", v: salas.length },
             { l: "Sem professor", v: salas.filter((s) => !s.professor).length },
           ].map((k) => (
             <div key={k.l} className="p-3 rounded-xl bg-slate-50">
-              <p className="text-[11px] text-slate-400">{k.l}</p>
+              <p className="text-[11px] font-medium text-slate-500 truncate">
+                {k.l}
+              </p>
               <p className="text-xl font-extrabold text-ink tabular">
                 {isLoading ? "…" : k.v}
               </p>
@@ -165,7 +167,7 @@ export const DetalheTurma: React.FC<{
         </div>
       </Card>
 
-      <nav className="flex gap-1.5 p-1.5 rounded-2xl bg-white shadow-flat w-fit">
+      <nav className="flex gap-1.5 p-1.5 rounded-2xl bg-white shadow-flat w-fit max-w-full overflow-x-auto">
         {(
           [
             { id: "disciplinas", l: "Disciplinas e professores", i: BookOpen },
@@ -174,6 +176,8 @@ export const DetalheTurma: React.FC<{
         ).map(({ id, l, i: I }) => (
           <button
             key={id}
+            type="button"
+            aria-pressed={aba === id}
             onClick={() => setAba(id)}
             className={cn(
               "flex items-center gap-2 px-4 h-10 rounded-xl text-xs font-bold whitespace-nowrap transition-all",
@@ -196,7 +200,7 @@ export const DetalheTurma: React.FC<{
       >
         {aba === "disciplinas" ? (
           <Card className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-extrabold text-ink">Grade da turma</h3>
               <Button
                 size="sm"
@@ -246,7 +250,7 @@ export const DetalheTurma: React.FC<{
                           "Professor atualizado 👩‍🏫",
                         )
                       }
-                      className={cn(inputCls, "w-56")}
+                      className={cn(inputCls, "w-full sm:w-56")}
                     >
                       <option value="">Sem professor</option>
                       {professores.map((p) => (
@@ -276,12 +280,21 @@ export const DetalheTurma: React.FC<{
         ) : (
           <Card className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <input
-                placeholder="Buscar aluno…"
-                value={buscaAluno}
-                onChange={(e) => setBuscaAluno(e.target.value)}
-                className={cn(inputCls, "flex-1 min-w-[180px]")}
-              />
+              <div className="relative flex-1 min-w-[180px]">
+                <Search
+                  size={15}
+                  aria-hidden
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="search"
+                  aria-label="Buscar aluno"
+                  placeholder="Buscar aluno…"
+                  value={buscaAluno}
+                  onChange={(e) => setBuscaAluno(e.target.value)}
+                  className={cn(inputCls, "pl-9")}
+                />
+              </div>
               <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
                 <input
                   type="checkbox"
@@ -313,9 +326,9 @@ export const DetalheTurma: React.FC<{
                   return (
                     <li
                       key={m.id}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-50"
+                      className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-xl bg-slate-50"
                     >
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-[140px]">
                         <p className="text-sm font-bold text-ink truncate">
                           {m.aluno.nome}
                         </p>

@@ -54,8 +54,8 @@ export const GestaoTurmas: React.FC = () => {
         textoVazio="Nenhuma turma cadastrada. Clique em “Nova turma” para começar 🚀"
         onTentar={() => refetch()}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
-          <Card padded={false} className="p-3 space-y-3 lg:sticky lg:top-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-6 items-start">
+          <Card padded={false} className="p-3 space-y-3 lg:sticky lg:top-24">
             <div className="relative">
               <Search
                 size={15}
@@ -85,6 +85,8 @@ export const GestaoTurmas: React.FC = () => {
               {filtradas.map((t) => (
                 <li key={t.id}>
                   <button
+                    type="button"
+                    aria-current={sel?.id === t.id}
                     onClick={() => setSelId(t.id)}
                     className={cn(
                       "w-full text-left p-3 rounded-xl transition-colors",
@@ -94,7 +96,7 @@ export const GestaoTurmas: React.FC = () => {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold text-ink truncate">
+                      <span className="text-sm font-bold text-ink truncate min-w-0">
                         {t.nome}
                       </span>
                       {!t.ativa && <Badge>Arquivada</Badge>}
@@ -104,7 +106,7 @@ export const GestaoTurmas: React.FC = () => {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-400 truncate">
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
                       {t.ano_letivo ?? "—"} · {t.totalAlunos} aluno(s) ·{" "}
                       {t.totalDisciplinas} disciplina(s)
                     </p>

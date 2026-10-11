@@ -1,12 +1,12 @@
+// =====================================================================
+// src/modules/aluno/ConfirmarPresencaCard.tsx
+// =====================================================================
 import React, { useState } from "react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
-import { useAlunoDados } from "./useAlunoDados";
 import { useRegras } from "../../services/regrasService";
-import {
-  chamadaStore,
-  type ResultadoConfirmacao,
-} from "../../services/chamadaStore";
+import { useConfirmarPresenca } from "../../services/alunoApi";
+import type { ResultadoConfirmacao } from "../../services/chamadaStore";
 
 const MENSAGENS: Record<ResultadoConfirmacao, { texto: string; cor: string }> =
   {
@@ -21,8 +21,8 @@ const MENSAGENS: Record<ResultadoConfirmacao, { texto: string; cor: string }> =
   };
 
 export const ConfirmarPresencaCard: React.FC = () => {
-  const { aluno } = useAlunoDados();
   const { digitosPin: digitos } = useRegras();
+  const confirmar = useConfirmarPresenca();
   const [pin, setPin] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoConfirmacao | null>(null);
@@ -31,17 +31,17 @@ export const ConfirmarPresencaCard: React.FC = () => {
     e.preventDefault();
     if (enviando) return;
     setEnviando(true);
-    setResultado(await chamadaStore.confirmar(pin, aluno.id));
+    setResultado(await confirmar(pin));
     setEnviando(false);
     setPin("");
   };
 
   return (
     <Card>
-      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-        Chamada ao Vivo
+      <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 mb-3">
+        Chamada ao vivo
       </h3>
-      <form onSubmit={handleSubmit} className="flex gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
         <input
           value={pin}
           onChange={(e) => {
@@ -49,15 +49,24 @@ export const ConfirmarPresencaCard: React.FC = () => {
             setResultado(null);
           }}
           inputMode="numeric"
+          autoComplete="one-time-code"
+          aria-label="PIN da chamada"
           placeholder={`PIN de ${digitos} dígitos`}
-          className="flex-1 px-4 py-2 rounded-xl border border-primary/20 text-center text-lg font-black tracking-widest focus:outline-none focus:border-primary"
+          className="flex-1 h-12 px-4 rounded-xl border border-primary/20 bg-white text-center text-lg font-black tracking-widest tabular focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/40"
         />
-        <Button type="submit" disabled={pin.length !== digitos || enviando}>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={pin.length !== digitos || enviando}
+        >
           {enviando ? "Enviando..." : "Confirmar"}
         </Button>
       </form>
       {resultado && (
-        <p className={`text-xs font-bold mt-3 ${MENSAGENS[resultado].cor}`}>
+        <p
+          role="status"
+          className={`text-xs font-bold mt-3 ${MENSAGENS[resultado].cor}`}
+        >
           {MENSAGENS[resultado].texto}
         </p>
       )}
