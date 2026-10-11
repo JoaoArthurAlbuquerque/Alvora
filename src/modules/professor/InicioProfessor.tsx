@@ -1,3 +1,6 @@
+// =====================================================================
+// src/modules/professor/InicioProfessor.tsx
+// =====================================================================
 import React from "react";
 import {
   Activity,
@@ -5,48 +8,107 @@ import {
   AlertTriangle,
   Radar,
   Users,
-  Moon,
-  Sun,
 } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { Button } from "../../core/ui/Button";
 import { IconBubble } from "../../core/ui/IconBubble";
-import { useFrequenciaTurma, TURMA_ID } from "../../services/frequenciaTurma";
-import { useRadarRisco } from "../../services/radarRisco";
-import { useMediasTurma } from "../../services/notas";
+import { classificar } from "../../services/radarRisco";
 import { useRegras } from "../../services/regrasService";
+import { useAlunosTurma, type Sala } from "../../services/api/turmas";
+import {
+  calcularMedia,
+  useFrequenciaSala,
+  useNotasSala,
+} from "../../services/api/professor";
 import type { TabProfessor } from "../../types";
 import { cn } from "../../core/lib/utils";
-import { ESTILO_RISCO, PROFESSOR_ID, pad, iniciais } from "./constantes";
+import { ESTILO_RISCO, pad, iniciais } from "./constantes";
+
+const ORDEM = { critico: 0, atencao: 1, ok: 2 } as const;
+
+const CardSala: React.FC<{
+  s: Sala;
+  atual: boolean;
+  onAbrir: (aba: TabProfessor) => void;
+}> = ({ s, atual, onAbrir }) => {
+  const { data: alunos } = useAlunosTurma(s.turmaId);
+  return (
+    <Card
+      hoverable
+      className={cn(
+        "relative overflow-hidden space-y-4",
+        atual && "ring-2 ring-primary/30",
+      )}
+    >
+      <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-primary/5" />
+      <div className="relative flex items-center gap-3">
+        <IconBubble icone={Users} cor={atual ? "primary" : "cyan"} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-ink truncate">
+            {s.disciplinaNome}
+          </p>
+          <p className="text-xs text-slate-400 truncate">
+            {s.turmaNome} · {alunos ? `${alunos.length} alunos` : "…"}
+            {s.cargaHoraria ? ` · ${s.cargaHoraria}h` : ""}
+          </p>
+        </div>
+      </div>
+      <div className="relative grid grid-cols-2 gap-2">
+        <Button size="sm" onClick={() => onAbrir("diario")}>
+          Abrir diário
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => onAbrir("notas")}>
+          Lançar notas
+        </Button>
+      </div>
+    </Card>
+  );
+};
 
 export const InicioProfessor: React.FC<{
+  sala: Sala;
+  salas: Sala[];
+  onSelecionar: (id: string) => void;
   onNavegar: (t: TabProfessor) => void;
-}> = ({ onNavegar }) => {
-  const { frequenciaMinima: FREQ_MINIMA, mediaMinima: MEDIA_MINIMA } =
-    useRegras();
+}> = ({ sala, salas, onSelecionar, onNavegar }) => {
+  const regras = useRegras();
   const {
-    alunos,
-    mediaFrequencia,
-    diasRegistrados,
-    diarioHojeSalvo,
-    limiteFaltas,
-  } = useFrequenciaTurma();
-  const medias = useMediasTurma(alunos);
-  const { itens: radar, contagem } = useRadarRisco(
-    alunos,
-    medias,
-    TURMA_ID,
-    PROFESSOR_ID,
-  );
+    frequenciaMinima: FREQ_MINIMA,
+    mediaMinima: MEDIA_MINIMA,
+    limiteAlertaFaltas,
+  } = regras;
+  const pesos = regras.pesosAvaliacoes as unknown as Record<string, number>;
+  const { data: freq } = useFrequenciaSala(sala.id);
+  const { data: notas = {} } = useNotasSala(sala.id);
+
+  const alunos = freq?.alunos ?? [];
+  const mediaFrequencia = freq?.mediaFrequencia ?? 100;
+  const diarioHojeSalvo = !!freq?.diarioHojeSalvo;
+
+  const radar = alunos
+    .map((a) => {
+      const media = calcularMedia(notas[a.id], pesos);
+      const c = classificar(a.percentualFaltas, media, regras);
+      return { ...a, media, nivel: c.nivel, motivo: c.motivo };
+    })
+    .sort(
+      (x, y) =>
+        ORDEM[x.nivel] - ORDEM[y.nivel] ||
+        x.percentualFrequencia - y.percentualFrequencia,
+    );
+
+  const contagem = {
+    alertas: radar.filter((r) => r.motivo).length,
+    atencao: radar.filter((r) => !r.motivo && r.nivel === "atencao").length,
+  };
   const freqOk = mediaFrequencia >= FREQ_MINIMA;
-  const turmaTranquila = contagem.alertas === 0 && contagem.atencao === 0;
-  const criterio = `faltas > ${limiteFaltas}% ou média < ${MEDIA_MINIMA}`;
+  const criterio = `faltas > ${limiteAlertaFaltas}% ou média < ${MEDIA_MINIMA}`;
 
   const kpis = [
     {
       label: "Frequência média",
       valor: `${mediaFrequencia}%`,
-      sub: `${diasRegistrados} diário(s) lançado(s) · mínimo ${FREQ_MINIMA}%`,
+      sub: `${freq?.diasRegistrados ?? 0} dia(s) com registro · mínimo ${FREQ_MINIMA}%`,
       icone: Activity,
       cor: freqOk ? "emerald" : "rose",
     },
@@ -67,27 +129,6 @@ export const InicioProfessor: React.FC<{
       cor: contagem.alertas ? "rose" : contagem.atencao ? "amber" : "emerald",
     },
   ] as const;
-
-  const turmas = [
-    {
-      nome: "Desenvolvimento Front-End",
-      info: `${alunos.length} alunos`,
-      turno: "Noturno",
-      icone: Moon,
-      acao: diarioHojeSalvo ? "Revisar chamada" : "Abrir chamada",
-      aba: "diario" as const,
-      destaque: !diarioHojeSalvo,
-    },
-    {
-      nome: "Arquitetura de Software",
-      info: "38 alunos",
-      turno: "Matutino",
-      icone: Sun,
-      acao: "Lançar notas",
-      aba: "notas" as const,
-      destaque: false,
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -110,18 +151,25 @@ export const InicioProfessor: React.FC<{
         <div className="flex flex-wrap items-center gap-3">
           <IconBubble icone={Radar} cor="violet" tamanho="sm" />
           <h3 className="flex-1 text-lg font-extrabold text-ink">
-            Radar de Risco · Turma A
+            Radar de Risco · {sala.turmaNome} · {sala.disciplinaNome}
           </h3>
           <span className="text-[11px] text-slate-400">
-            {alunos.length} alunos · atualiza ao salvar diário ou notas
+            {alunos.length} alunos · atualiza em tempo real
           </span>
         </div>
 
-        {turmaTranquila && (
-          <p className="text-sm font-bold text-emerald-600 bg-emerald-50 p-4 rounded-xl text-center animate-pop">
-            🎉 Nenhum aluno em risco. Turma afiada!
+        {!alunos.length && (
+          <p className="text-sm text-slate-400 text-center py-4">
+            Nenhum aluno com matrícula ativa nesta turma.
           </p>
         )}
+        {!!alunos.length &&
+          contagem.alertas === 0 &&
+          contagem.atencao === 0 && (
+            <p className="text-sm font-bold text-emerald-600 bg-emerald-50 p-4 rounded-xl text-center animate-pop">
+              🎉 Nenhum aluno em risco. Turma afiada!
+            </p>
+          )}
 
         <div className="space-y-2 stagger">
           {radar.map((a) => {
@@ -183,38 +231,16 @@ export const InicioProfessor: React.FC<{
       <div className="space-y-3">
         <h3 className="text-lg font-extrabold text-ink">Minhas turmas</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger">
-          {turmas.map((t) => (
-            <Card
-              key={t.nome}
-              hoverable
-              className="relative overflow-hidden space-y-4"
-            >
-              <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-primary/5" />
-              <div className="relative flex items-center gap-3">
-                <IconBubble
-                  icone={Users}
-                  cor={t.aba === "diario" ? "primary" : "cyan"}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-ink truncate">
-                    {t.nome}
-                  </p>
-                  <p className="text-xs text-slate-400 flex items-center gap-1">
-                    <t.icone size={12} /> {t.info} · {t.turno}
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="relative w-full"
-                variant={
-                  t.destaque || t.aba === "diario" ? "primary" : "secondary"
-                }
-                onClick={() => onNavegar(t.aba)}
-              >
-                {t.acao}
-              </Button>
-            </Card>
+          {salas.map((s) => (
+            <CardSala
+              key={s.id}
+              s={s}
+              atual={s.id === sala.id}
+              onAbrir={(aba) => {
+                onSelecionar(s.id);
+                onNavegar(aba);
+              }}
+            />
           ))}
         </div>
       </div>

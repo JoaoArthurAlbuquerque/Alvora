@@ -1,3 +1,6 @@
+// =====================================================================
+// src/app/navegacao.ts
+// =====================================================================
 import type { LucideIcon } from "lucide-react";
 import {
   House,
@@ -12,6 +15,7 @@ import {
   Settings,
   Radio,
   ScrollText,
+  School,
 } from "lucide-react";
 import type { PapelUsuario } from "../types";
 
@@ -38,7 +42,7 @@ export const navPorPapel: Record<PapelUsuario, ItemNav[]> = {
   ],
   gestor: [
     { label: "Indicadores", path: "/gestor", icone: ChartColumn },
-    { label: "Alunos & Turmas", path: "/gestor/turmas", icone: Users },
+    { label: "Turmas", path: "/gestor/turmas", icone: School },
     { label: "Professores", path: "/gestor/professores", icone: GraduationCap },
     { label: "Usuários", path: "/gestor/usuarios", icone: UserPlus },
     { label: "Regras", path: "/gestor/regras", icone: Settings },
@@ -46,14 +50,15 @@ export const navPorPapel: Record<PapelUsuario, ItemNav[]> = {
   ],
 };
 
-/** Atalhos extras por perfil (além de IA, Dúvidas e Calendário) */
+/** Atalhos extras por perfil (além de IA e Calendário) */
 export const acoesExtras: Record<PapelUsuario, ItemNav[]> = {
   aluno: [],
   professor: [],
   gestor: [
     {
+      // O radar de risco fica no painel; a gestão de turmas não filtra por risco
       label: "Alunos em Risco",
-      path: "/gestor/turmas?status=risco",
+      path: "/gestor",
       icone: BellRing,
     },
   ],

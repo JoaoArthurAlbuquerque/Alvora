@@ -1,8 +1,9 @@
+// =====================================================================
+// src/modules/professor/constantes.ts
+// =====================================================================
 import { Home, ClipboardCheck, PenLine, FolderOpen } from "lucide-react";
 import type { NivelRisco } from "../../services/radarRisco";
 import type { StatusPresenca, TabProfessor } from "../../types";
-
-export const PROFESSOR_ID = "prof";
 
 export const ABAS: {
   id: TabProfessor;
@@ -48,7 +49,7 @@ const PRESENTE = {
   cls: "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30",
 };
 export const VISUAL: Record<
-  StatusPresenca,
+  StatusPresenca | "ABONADA",
   { label: string; icone: string; cls: string }
 > = {
   PRESENTE_PIN: PRESENTE,
@@ -63,12 +64,17 @@ export const VISUAL: Record<
     icone: "⚑",
     cls: "bg-amber-400 text-white shadow-lg shadow-amber-500/30",
   },
+  ABONADA: {
+    label: "Abonada",
+    icone: "★",
+    cls: "bg-sky-500 text-white shadow-lg shadow-sky-500/30 cursor-not-allowed",
+  },
 };
 
 export const pad = (n: number) => n.toString().padStart(2, "0");
 export const formatarTempo = (seg: number) =>
   `${pad(Math.floor(seg / 60))}:${pad(seg % 60)}`;
-export const hoje = () => new Date().toLocaleDateString("sv-SE");
+export { hojeRecife as hoje } from "../../services/api/professor";
 export const iniciais = (nome: string) =>
   nome
     .split(" ")
