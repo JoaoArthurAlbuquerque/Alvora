@@ -1,8 +1,3 @@
-// =====================================================================
-// src/app/Applayout.tsx
-// - Itens do menu: cursor de mãozinha + foco visível; sem "deslize" no hover
-// - Busca com aria-label; botão flutuante com foco visível
-// =====================================================================
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import {
   NavLink,
@@ -44,6 +39,29 @@ const CalendarioModal = lazy(() =>
 );
 
 type Ferramenta = "ia" | "duvidas" | "calendario";
+
+const AVATAR_ALVI = "/alvi.png"; // public/alvi.png
+
+/** Avatar do Alvi; cai para o ícone Sparkles se a imagem não carregar */
+const IconeAlvi: React.FC<{ size?: number; className?: string }> = ({
+  size = 18,
+  className,
+}) => {
+  const [falhou, setFalhou] = useState(false);
+  if (falhou) return <Sparkles size={size} className={className} aria-hidden />;
+  return (
+    <img
+      src={AVATAR_ALVI}
+      alt=""
+      aria-hidden
+      width={size}
+      height={size}
+      onError={() => setFalhou(true)}
+      className={cn("shrink-0 rounded-full bg-white object-cover", className)}
+      style={{ width: size, height: size }}
+    />
+  );
+};
 
 const foco =
   "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25";
@@ -108,8 +126,8 @@ export const AppLayout: React.FC = () => {
     navigate("/login", { replace: true });
   };
 
+  // O Alvi fica só no card de baixo, sem repetir aqui
   const ferramentas = [
-    { label: "Assistente IA", icone: Sparkles, onClick: abrir("ia") },
     { label: "Calendário", icone: CalendarDays, onClick: abrir("calendario") },
   ];
 
@@ -188,20 +206,24 @@ export const AppLayout: React.FC = () => {
         </div>
       </div>
 
-      {/* Card promocional da IA (é um botão: pode reagir) */}
+      {/* Card do Alvi (é um botão: pode reagir) */}
       <button
         type="button"
         onClick={abrir("ia")}
+        aria-label="Conversar com o Alvi, assistente pedagógico"
         className={cn(
           "group mt-auto mb-3 relative overflow-hidden rounded-2xl bg-brand p-4 text-left text-white shadow-glow cursor-pointer hover:-translate-y-0.5 transition-transform",
           foco,
         )}
       >
         <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 group-hover:scale-125 transition-transform duration-500" />
-        <Sparkles size={20} className="relative animate-float" aria-hidden />
+        <IconeAlvi
+          size={36}
+          className="relative ring-2 ring-white/40 animate-float"
+        />
         <p className="relative mt-2 text-sm font-bold">Precisa de ajuda?</p>
         <p className="relative text-xs text-white/80">
-          Pergunte ao Assistente IA ✨
+          Bora conversar com o Alvi ☀️
         </p>
       </button>
 
