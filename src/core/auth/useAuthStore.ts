@@ -4,16 +4,24 @@ import { supabase } from "@/lib/supabase";
 import { authStorage, definirLembrar } from "@/lib/authStorage";
 import type { Usuario } from "../../types";
 
+/** Usa o mesmo tipo de `Usuario.papel` (PapelUsuario), sem duplicar a definição */
+type Papel = Usuario["papel"];
+
+/** Retornado pelo login quando a conta não é do perfil escolhido */
+export const PAPEL_INCORRETO = "PAPEL_INCORRETO";
+
 interface AuthState {
   usuario: Usuario | null;
-  login: (email: string, senha: string, lembrar?: boolean) => Promise<string | null>;
+  login: (
+    email: string,
+    senha: string,
+    lembrar?: boolean,
+    papelEsperado?: Papel,
+  ) => Promise<string | null>;
   logout: () => Promise<void>;
   recarregarPerfil: () => Promise<void>;
   validarSessao: () => Promise<boolean>;
 }
-
-/** Usa o mesmo tipo de `Usuario.papel` (PapelUsuario), sem duplicar a definição */
-type Papel = Usuario["papel"];
 
 const PAPEIS_VALIDOS: readonly string[] = ["aluno", "professor", "gestor", "admin"];
 
@@ -52,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       usuario: null,
 
-      login: async (email, senha, lembrar = true) => {
+      login: async (email, senha, lembrar = true, papelEsperado) => {
         // Antes do signIn: define onde o token e o perfil serão gravados
         definirLembrar(lembrar);
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -65,6 +73,12 @@ export const useAuthStore = create<AuthState>()(
         if (!usuario) {
           await supabase.auth.signOut();
           return "Perfil não encontrado";
+        }
+
+        // Confere o perfil ANTES de gravar: a tela de login não chega a redirecionar
+        if (papelEsperado && usuario.papel !== papelEsperado) {
+          await supabase.auth.signOut();
+          return PAPEL_INCORRETO;
         }
 
         set({ usuario });

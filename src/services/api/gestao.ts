@@ -1,6 +1,3 @@
-// =====================================================================
-// src/services/api/gestao.ts  (NOVO)
-// =====================================================================
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -58,15 +55,18 @@ const paraPessoa = (p: PerfilRow): Pessoa => ({
   matricula: p.matricula ?? null,
 });
 
-/** Erro do Postgres → mensagem para o gestor */
+/** Erro do Postgres → mensagem que diz o que fazer */
 export function erroGestao(e: unknown): string {
   const { code, message = "" } = (e ?? {}) as { code?: string; message?: string };
   if (code === "23505") return "Já existe um registro igual (turma, disciplina ou matrícula).";
   if (code === "23503")
-    return "Há frequência, notas ou matrículas ligadas a este item. Arquive ou troque em vez de remover.";
-  if (code === "23514") return "Dados fora das regras (nome de 2 a 80 caracteres, ano entre 2000 e 2100).";
-  if (message.includes("row-level security")) return "Você não tem permissão para esta ação.";
-  return message || "Algo deu errado 😕";
+    return "Há frequência, notas ou matrículas ligadas a este item. Desative ou arquive em vez de remover.";
+  if (code === "23514") return "Valor fora das regras do banco. Confira o status e os campos e tente de novo.";
+  if (code === "42501" || message.includes("row-level security"))
+    return "Você não tem permissão para esta ação. Confirme se está logado como gestor.";
+  if (code === "P0001") return message; // mensagens dos triggers já vêm em pt-BR
+  if (/fetch|network/i.test(message)) return "Sem conexão. Verifique a internet e tente de novo.";
+  return message ? `Não foi possível concluir: ${message}` : "Algo deu errado 😕 Tente de novo.";
 }
 
 function useInvalidar() {
@@ -124,8 +124,7 @@ export interface TurmaForm {
 export function validarTurma(f: TurmaForm): string | null {
   const nome = f.nome.trim();
   if (nome.length < 2 || nome.length > 80) return "O nome deve ter de 2 a 80 caracteres.";
-  if (f.ano_letivo !== null && (f.ano_letivo < 2000 || f.ano_letivo > 2100))
-    return "Ano letivo inválido.";
+  if (f.ano_letivo !== null && (f.ano_letivo < 2000 || f.ano_letivo > 2100)) return "Ano letivo inválido.";
   return null;
 }
 
@@ -304,6 +303,7 @@ export function useMatricular(turmaId: string) {
   });
 }
 
+/** "Remover" matrícula = desativar (mantém o histórico de frequência e notas) */
 export function useStatusMatricula() {
   const invalidar = useInvalidar();
   return useMutation({

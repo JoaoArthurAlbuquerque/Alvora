@@ -18,7 +18,15 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "../core/auth/useAuthStore";
 import { cn } from "../core/lib/utils";
-import { navPorPapel, acoesExtras, rotuloPapel } from "./navegacao";
+import type { PapelUsuario } from "../types";
+import {
+  navPorPapel,
+  acoesExtras,
+  rotuloPapel,
+  tituloDaRota,
+  paginasDoPapel,
+  buscarPaginas,
+} from "./navegacao";
 
 const AssistentePedagogicoModal = lazy(() =>
   import("../modules/assistente-pedagogico/AssistentePedagogicoModal").then(
@@ -72,6 +80,68 @@ const itemBase = cn(
 const itemInativo = "text-slate-500 hover:text-primary hover:bg-primary/5";
 const iconeBtn = cn("p-2 rounded-lg cursor-pointer transition-colors", foco);
 
+/** Busca global: procura as páginas que o perfil logado pode abrir */
+const BuscaPaginas: React.FC<{ papel: PapelUsuario }> = ({ papel }) => {
+  const navigate = useNavigate();
+  const [termo, setTermo] = useState("");
+  const resultados = buscarPaginas(termo, paginasDoPapel(papel));
+  const ir = (path: string) => {
+    setTermo("");
+    navigate(path);
+  };
+
+  return (
+    <div className="relative hidden lg:block w-64 shrink-0">
+      <div className="flex items-center gap-2 h-10 px-4 rounded-full bg-white border border-primary/10 shadow-flat-sm focus-within:ring-4 focus-within:ring-primary/15 transition">
+        <Search size={16} className="text-slate-400" aria-hidden />
+        <input
+          type="search"
+          role="combobox"
+          aria-expanded={!!termo.trim()}
+          aria-controls="busca-resultados"
+          aria-label="Buscar páginas"
+          placeholder="Buscar páginas..."
+          value={termo}
+          onChange={(e) => setTermo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && resultados[0]) ir(resultados[0].path);
+            if (e.key === "Escape") setTermo("");
+          }}
+          className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
+        />
+      </div>
+      {termo.trim() && (
+        <ul
+          id="busca-resultados"
+          role="listbox"
+          className="absolute right-0 top-12 z-20 w-full p-1.5 rounded-2xl bg-white shadow-flat-2 border border-primary/10 animate-fade-in"
+        >
+          {resultados.length ? (
+            resultados.map(({ label, path, icone: I }) => (
+              <li key={path}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => ir(path)}
+                  className="w-full flex items-center gap-2.5 px-3 h-10 rounded-xl text-sm text-left text-ink cursor-pointer hover:bg-primary/5"
+                >
+                  <I size={16} className="text-primary" aria-hidden /> {label}
+                </button>
+              </li>
+            ))
+          ) : (
+            <li className="px-3 py-3 text-xs text-slate-500">
+              Nenhuma página encontrada. A busca procura as telas do menu, o
+              perfil e o calendário.
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 export const AppLayout: React.FC = () => {
   const { usuario, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -102,17 +172,11 @@ export const AppLayout: React.FC = () => {
 
   const nome =
     usuario.nome?.trim() || usuario.email?.split("@")[0] || "Usuário";
-  const primeiroNome = nome.split(" ")[0];
   const inicial = nome
     .replace(/^(Prof\.|Profa\.|Dra?\.)\s*/, "")
     .charAt(0)
     .toUpperCase();
-
-  const paginaAtual =
-    [...nav]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((i) => pathname.startsWith(i.path))?.label ??
-    (pathname.endsWith("/perfil") ? "Meu Perfil" : "");
+  const paginaAtual = tituloDaRota(pathname, nav);
 
   const fechar = () => setMenuAberto(false);
   const abrir = (f: Ferramenta) => () => {
@@ -227,6 +291,7 @@ export const AppLayout: React.FC = () => {
         </p>
       </button>
 
+      {/* Único acesso ao perfil (o atalho duplicado do cabeçalho saiu: QA-04) */}
       <div className="pt-3 border-t border-slate-100 flex items-center gap-1">
         <NavLink
           to={`/${papel}/perfil`}
@@ -284,8 +349,9 @@ export const AppLayout: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 px-4 sm:px-6 lg:px-10 pt-4">
-          <div className="h-16 flex items-center gap-3 px-4 md:px-2 rounded-2xl bg-white/70 md:bg-transparent backdrop-blur md:backdrop-blur-none shadow-flat md:shadow-none">
+        {/* Fundo opaco no desktop: o conteúdo não aparece por baixo ao rolar (QA-02) */}
+        <header className="sticky top-0 z-20 px-4 sm:px-6 lg:px-10 pt-4">
+          <div className="h-16 flex items-center gap-3 px-4 rounded-2xl bg-white/95 backdrop-blur shadow-flat">
             <button
               type="button"
               onClick={() => setMenuAberto(true)}
@@ -300,34 +366,11 @@ export const AppLayout: React.FC = () => {
             </button>
             <h2
               key={paginaAtual}
-              className="text-lg md:text-2xl font-extrabold text-ink truncate animate-fade-in"
+              className="flex-1 min-w-0 text-lg md:text-2xl font-extrabold text-ink truncate animate-fade-in"
             >
               {paginaAtual}
             </h2>
-            <div className="ml-auto hidden lg:flex items-center gap-2 h-10 w-72 px-4 rounded-full bg-white border border-primary/10 shadow-flat-sm focus-within:ring-4 focus-within:ring-primary/15 transition">
-              <Search size={16} className="text-slate-400" aria-hidden />
-              <input
-                type="search"
-                aria-label="Buscar"
-                placeholder="Buscar..."
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
-              />
-            </div>
-            <NavLink
-              to={`/${papel}/perfil`}
-              className={cn(
-                "hidden md:flex items-center gap-2 h-10 pl-1 pr-4 rounded-full bg-brand text-white text-sm font-semibold shadow-glow hover:-translate-y-0.5 transition-transform",
-                foco,
-              )}
-            >
-              <span
-                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"
-                aria-hidden
-              >
-                {inicial}
-              </span>
-              {primeiroNome}
-            </NavLink>
+            <BuscaPaginas papel={papel} />
           </div>
         </header>
 

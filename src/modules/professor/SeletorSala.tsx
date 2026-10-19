@@ -1,6 +1,3 @@
-// =====================================================================
-// src/modules/professor/SeletorSala.tsx  (só o componente: Fast Refresh OK)
-// =====================================================================
 import React from "react";
 import type { Sala } from "../../services/api/turmas";
 import { EstadoConsulta } from "../../core/ui/EstadoConsulta";
@@ -34,9 +31,14 @@ const SalaAutomatica: React.FC<{ children: RenderSala }> = ({ children }) => {
     useSalaSelecionada();
   return (
     <div className="space-y-4">
-      {salas.length > 1 && (
-        <div className="flex justify-end">
-          <SeletorSala salas={salas} valor={sala?.id} onChange={setId} />
+      {/* Turma e disciplina sempre visíveis, mesmo com uma só sala */}
+      {sala && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-500">
+            Turma: <b className="text-ink">{sala.turmaNome}</b> · Disciplina:{" "}
+            <b className="text-ink">{sala.disciplinaNome}</b>
+          </p>
+          <SeletorSala salas={salas} valor={sala.id} onChange={setId} />
         </div>
       )}
       <EstadoConsulta

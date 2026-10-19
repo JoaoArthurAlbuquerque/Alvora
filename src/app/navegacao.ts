@@ -1,15 +1,14 @@
-// =====================================================================
-// src/app/navegacao.ts
-// =====================================================================
 import type { LucideIcon } from "lucide-react";
 import {
   House,
   BookOpen,
   CalendarCheck,
+  CalendarDays,
   GraduationCap,
   FileText,
   Users,
   UserPlus,
+  UserRound,
   BellRing,
   ChartColumn,
   Settings,
@@ -69,3 +68,35 @@ export const rotuloPapel: Record<PapelUsuario, string> = {
   professor: "Professor",
   gestor: "Gestor",
 };
+
+/** Rotas comuns a todos os perfis que não aparecem no menu */
+export const ROTAS_COMUNS: Record<string, { label: string; icone: LucideIcon }> = {
+  perfil: { label: "Meu perfil", icone: UserRound },
+  calendario: { label: "Calendário", icone: CalendarDays },
+};
+
+/** Título do cabeçalho conforme a rota (antes, /aluno/perfil mostrava "Início") */
+export function tituloDaRota(pathname: string, nav: ItemNav[]): string {
+  const sub = pathname.split("/")[2];
+  if (sub && ROTAS_COMUNS[sub]) return ROTAS_COMUNS[sub].label;
+  const item = [...nav]
+    .sort((a, b) => b.path.length - a.path.length)
+    .find((i) => pathname === i.path || pathname.startsWith(`${i.path}/`));
+  return item?.label ?? "";
+}
+
+/** Páginas que o papel pode buscar (escopo da busca global) */
+export function paginasDoPapel(papel: PapelUsuario): ItemNav[] {
+  return [
+    ...navPorPapel[papel],
+    ...Object.entries(ROTAS_COMUNS).map(([k, v]) => ({ ...v, path: `/${papel}/${k}` })),
+  ];
+}
+
+const norm = (s: string) =>
+  s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+
+export function buscarPaginas(termo: string, itens: ItemNav[]): ItemNav[] {
+  const t = norm(termo);
+  return t ? itens.filter((i) => norm(i.label).includes(t)) : [];
+}

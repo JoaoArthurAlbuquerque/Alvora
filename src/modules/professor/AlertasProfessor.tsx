@@ -1,6 +1,3 @@
-// =====================================================================
-// src/modules/professor/AlertasProfessor.tsx
-// =====================================================================
 import React from "react";
 import { BellRing, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Card } from "../../core/ui/Card";
@@ -92,9 +89,14 @@ export const AlertasProfessor: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* O cabeçalho do layout já mostra "Alertas de Faltas": aqui vai a turma */}
       <PageHeader
-        titulo="Alertas de Faltas"
-        descricao={`Limite de faltas: ${limite}% das aulas${sala ? ` · ${sala.turmaNome} · ${sala.disciplinaNome}` : ""}`}
+        titulo={
+          sala
+            ? `${sala.turmaNome} · ${sala.disciplinaNome}`
+            : "Selecione uma turma"
+        }
+        descricao={`Alunos desta turma · limite de faltas: ${limite}% das aulas`}
         acao={<SeletorSala salas={salas} valor={sala?.id} onChange={setId} />}
       />
 

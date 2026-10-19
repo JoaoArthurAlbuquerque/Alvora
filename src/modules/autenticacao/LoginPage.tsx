@@ -1,4 +1,3 @@
-// src/modules/autenticacao/LoginPage.tsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   useNavigate,
@@ -21,7 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { useAuthStore } from "../../core/auth/useAuthStore";
+import { useAuthStore, PAPEL_INCORRETO } from "../../core/auth/useAuthStore";
 import { Button } from "../../core/ui/Button";
 import { cn } from "../../core/lib/utils";
 import { lembrarSessao } from "../../lib/authStorage";
@@ -79,7 +78,7 @@ export const LoginPage: React.FC = () => {
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
-  const { usuario, login, logout } = useAuthStore();
+  const { usuario, login } = useAuthStore();
   const navigate = useNavigate();
 
   /** Próximo vídeo válido depois de i (em loop) */
@@ -123,22 +122,18 @@ export const LoginPage: React.FC = () => {
     setCarregando(true);
     setErro(null);
 
-    const msg = await login(email.trim(), senha, lembrar);
+    // O store confere o perfil antes de gravar o usuário (sem "piscar" a tela)
+    const msg = await login(email.trim(), senha, lembrar, role);
     if (msg) {
       setCarregando(false);
-      return setErro(ERROS[msg] ?? msg);
-    }
-
-    const papel = useAuthStore.getState().usuario?.papel;
-    if (papel !== role) {
-      await logout();
-      setCarregando(false);
       return setErro(
-        `Esta conta não é de ${ROLES[idx].label}. Selecione o perfil correto.`,
+        msg === PAPEL_INCORRETO
+          ? `Esta conta não é de ${ROLES[idx].label}. Selecione o perfil correto.`
+          : (ERROS[msg] ?? msg),
       );
     }
 
-    navigate(`/${papel}`, { replace: true });
+    navigate(`/${role}`, { replace: true });
   };
 
   return (
