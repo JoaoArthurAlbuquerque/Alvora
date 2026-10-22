@@ -228,6 +228,13 @@ const router = createBrowserRouter([
                     ),
                   },
                   {
+                    path: "conteudos",
+                    lazy: tela(
+                      () => import("../modules/professor/ConteudosProfessor"),
+                      "ConteudosProfessor",
+                    ),
+                  },
+                  {
                     path: "alertas",
                     lazy: tela(
                       () => import("../modules/professor/AlertasProfessor"),
@@ -251,6 +258,27 @@ const router = createBrowserRouter([
                     ),
                   },
                   {
+                    path: "justificativas",
+                    lazy: tela(
+                      () => import("../modules/gestor/JustificativasGestor"),
+                      "JustificativasGestor",
+                    ),
+                  },
+                  {
+                    path: "turmas",
+                    lazy: tela(
+                      () => import("../modules/gestor/turmas/GestaoTurmas"),
+                      "GestaoTurmas",
+                    ),
+                  },
+                  {
+                    path: "professores",
+                    lazy: tela(
+                      () => import("../modules/gestor/ProfessoresGestor"),
+                      "ProfessoresGestor",
+                    ),
+                  },
+                  {
                     path: "usuarios",
                     lazy: tela(
                       () => import("../modules/gestor/AdminUsuarios"),
@@ -265,24 +293,10 @@ const router = createBrowserRouter([
                     ),
                   },
                   {
-                    path: "professores",
-                    lazy: tela(
-                      () => import("../modules/gestor/ProfessoresGestor"),
-                      "ProfessoresGestor",
-                    ),
-                  },
-                  {
                     path: "auditoria",
                     lazy: tela(
                       () => import("../modules/gestor/AuditoriaGestor"),
                       "AuditoriaGestor",
-                    ),
-                  },
-                  {
-                    path: "turmas",
-                    lazy: tela(
-                      () => import("../modules/gestor/turmas/GestaoTurmas"),
-                      "GestaoTurmas",
                     ),
                   },
                   rotaCalendario(),

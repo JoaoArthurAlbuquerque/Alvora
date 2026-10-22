@@ -115,7 +115,7 @@ export const RadarGestor: React.FC = () => {
 
       {lista.length === 0 && (
         <p className="text-sm font-bold text-emerald-600 bg-emerald-50 p-4 rounded-xl text-center animate-pop">
-          🎉 Nenhum alerta por aqui. Instituição no azul!
+          Nenhum alerta por aqui.
         </p>
       )}
 

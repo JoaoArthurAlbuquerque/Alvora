@@ -48,7 +48,7 @@ export const AuditoriaGestor: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         titulo="Auditoria"
-        descricao="Últimos 100 registros de presença 🕵️"
+        descricao="Últimos 100 registros de presença"
         acao={
           <Button
             variant="outline"

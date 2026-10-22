@@ -1,17 +1,16 @@
 // =====================================================================
 // src/modules/gestor/PortalGestor.tsx
 // =====================================================================
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   Users,
   Activity,
   AlertTriangle,
   BellOff,
   FileClock,
-  Radar,
-  FileCheck2,
-  UserPlus,
   School,
+  ChevronRight,
 } from "lucide-react";
 import { Card } from "../../core/ui/Card";
 import { PageHeader } from "../../core/ui/PageHeader";
@@ -22,14 +21,8 @@ import { useJustificativas } from "../../services/justificativaStore";
 // Importar do service garante que as regras salvas já foram carregadas
 import { useRegras } from "../../services/regrasService";
 import { useTurmasGestao } from "../../services/api/gestao";
-import { cn } from "../../core/lib/utils";
 import { pad } from "./constantes";
 import { RadarGestor } from "./RadarGestor";
-import { JustificativasGestor } from "./JustificativasGestor";
-import { AdminUsuarios } from "./AdminUsuarios";
-import { GestaoTurmas } from "./turmas/GestaoTurmas";
-
-type Aba = "radar" | "justificativas" | "turmas" | "usuarios";
 
 export const PortalGestor: React.FC = () => {
   const {
@@ -42,7 +35,6 @@ export const PortalGestor: React.FC = () => {
   const justificativas = useJustificativas();
   const { alunos, mediaFrequencia } = useFrequenciaTurma();
   const { data: turmas = [] } = useTurmasGestao();
-  const [aba, setAba] = useState<Aba>("radar");
 
   const semNotif = alertas.filter((a) => !a.notificado.aluno).length;
   const justPend = justificativas.filter((j) => j.status === "pendente").length;
@@ -87,75 +79,62 @@ export const PortalGestor: React.FC = () => {
       sub: justPend ? "Em análise" : "Caixa zerada ☕",
       icone: FileClock,
       cor: justPend ? "amber" : "emerald",
+      to: "/gestor/justificativas",
     },
   ] as const;
-
-  const abas: { id: Aba; label: string; icone: typeof Radar; qtd: number }[] = [
-    { id: "radar", label: "Radar de risco", icone: Radar, qtd: alertas.length },
-    {
-      id: "justificativas",
-      label: "Justificativas",
-      icone: FileCheck2,
-      qtd: justPend,
-    },
-    { id: "turmas", label: "Turmas", icone: School, qtd: turmasPendentes },
-    { id: "usuarios", label: "Usuários", icone: UserPlus, qtd: 0 },
-  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         titulo="Painel de Gestão"
-        descricao="Assiduidade e risco pedagógico em tempo real 📊"
+        descricao="Assiduidade e risco pedagógico em tempo real"
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 stagger">
-        {kpis.map((k) => (
-          <Card key={k.label} hoverable className="space-y-3">
-            <IconBubble icone={k.icone} cor={k.cor} tamanho="sm" />
-            <div>
-              <p className="text-xs font-medium text-slate-400">{k.label}</p>
-              <p className="text-2xl font-extrabold text-ink tabular">
-                {k.valor}
-              </p>
-              <p className="text-[11px] text-slate-400 truncate">{k.sub}</p>
-            </div>
-          </Card>
-        ))}
+        {kpis.map((k) => {
+          const card = (
+            <Card hoverable className="space-y-3 h-full">
+              <IconBubble icone={k.icone} cor={k.cor} tamanho="sm" />
+              <div>
+                <p className="text-xs font-medium text-slate-400">{k.label}</p>
+                <p className="text-2xl font-extrabold text-ink tabular">
+                  {k.valor}
+                </p>
+                <p className="text-[11px] text-slate-400 truncate">{k.sub}</p>
+              </div>
+            </Card>
+          );
+          return "to" in k ? (
+            <Link
+              key={k.label}
+              to={k.to}
+              className="rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25"
+            >
+              {card}
+            </Link>
+          ) : (
+            <div key={k.label}>{card}</div>
+          );
+        })}
       </div>
 
-      <nav className="flex gap-1.5 p-1.5 rounded-2xl bg-white shadow-flat overflow-x-auto">
-        {abas.map(({ id, label, icone: I, qtd }) => (
-          <button
-            key={id}
-            onClick={() => setAba(id)}
-            className={cn(
-              "flex items-center gap-2 px-4 h-10 rounded-xl text-xs font-bold whitespace-nowrap transition-all",
-              aba === id
-                ? "bg-brand text-white shadow-glow"
-                : "text-slate-500 hover:bg-primary/5 hover:text-primary",
-            )}
-          >
-            <I size={15} /> {label}
-            {qtd > 0 && (
-              <span
-                className={cn(
-                  "min-w-5 h-5 px-1.5 rounded-full text-[10px] flex items-center justify-center tabular",
-                  aba === id ? "bg-white/25" : "bg-rose-500 text-white",
-                )}
-              >
-                {qtd}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
+      {turmasPendentes > 0 && (
+        <Link
+          to="/gestor/turmas"
+          className="flex items-center gap-3 px-4 h-12 rounded-2xl bg-amber-50 text-amber-800 text-sm font-semibold shadow-flat-sm hover:bg-amber-100 transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/40"
+        >
+          <School size={17} aria-hidden />
+          <span className="flex-1">
+            {turmasPendentes === 1
+              ? "1 turma ativa tem disciplina sem professor"
+              : `${turmasPendentes} turmas ativas têm disciplinas sem professor`}
+          </span>
+          <ChevronRight size={16} aria-hidden />
+        </Link>
+      )}
 
-      <div key={aba} className="animate-fade-up">
-        {aba === "radar" && <RadarGestor />}
-        {aba === "justificativas" && <JustificativasGestor />}
-        {aba === "turmas" && <GestaoTurmas />}
-        {aba === "usuarios" && <AdminUsuarios />}
+      <div className="animate-fade-up">
+        <RadarGestor />
       </div>
     </div>
   );

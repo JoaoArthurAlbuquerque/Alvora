@@ -38,7 +38,7 @@ export const ProfessoresGestor: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         titulo="Professores"
-        descricao={`${professores.length} mestre(s) no time 🍎`}
+        descricao={`${professores.length} mestre(s) no time`}
         acao={
           <Button
             variant="outline"
